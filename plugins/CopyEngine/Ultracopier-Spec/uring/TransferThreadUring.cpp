@@ -499,6 +499,12 @@ void TransferThreadUring::doTransferPipeline()
 
     // Main event loop — batch CQE processing + single submit per iteration
     struct io_uring_cqe *cqes[RING_DEPTH];
+    // Bounded completion wait, NOT the old INFINITE io_uring_wait_cqe (Bug C): stop()/skip() only SET
+    // stopIt -- they must NOT submit a close SQE on THIS ring from the scheduler thread to wake us
+    // (io_uring's SQ is single-producer; a cross-thread get_sqe+submit races the worker). We poll
+    // stopIt/putInPause every UC_URING_WAIT_MS instead. During an active transfer completions arrive far
+    // faster than this, so the timeout is a zero-cost fallback that only fires when idle-waiting/stopping.
+    static constexpr long long UC_URING_WAIT_MS=200;
     while((readsInFlight>0 || writesInFlight>0) && !stopIt && !errorOccurred)
     {
         // Handle pause
@@ -510,14 +516,17 @@ void TransferThreadUring::doTransferPipeline()
                 break;
         }
 
-        // Wait for at least one completion
+        // Wait for at least one completion (bounded -- see above)
         {
             struct io_uring_cqe *cqe;
-            ret=io_uring_wait_cqe(&ring,&cqe);
+            struct __kernel_timespec ts;
+            ts.tv_sec=0;
+            ts.tv_nsec=UC_URING_WAIT_MS*1000000LL;
+            ret=io_uring_wait_cqe_timeout(&ring,&cqe,&ts);
             if(ret<0)
             {
-                if(ret==-EINTR)
-                    continue;
+                if(ret==-EINTR || ret==-ETIME)
+                    continue; // interrupted / poll window elapsed -> loop back, re-check stopIt/putInPause
                 errorString_internal="io_uring_wait_cqe failed: "+std::string(strerror(-ret));
                 ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+"] "+errorString_internal);
                 readError=true;
@@ -534,6 +543,13 @@ void TransferThreadUring::doTransferPipeline()
         {
             struct io_uring_cqe *cqe=cqes[ci];
             uint64_t userData=io_uring_cqe_get_data64(cqe);
+            // The internal timeout CQE from io_uring_wait_cqe_timeout on kernels <5.11 (SQE fallback;
+            // 5.11+ uses a native wait-arg with no CQE) carries LIBURING_UDATA_TIMEOUT. It is not one of
+            // our ops -- skip it so it never touches readsInFlight/writesInFlight. (Its OP_MASK bits are
+            // 0xF, distinct from our READ/WRITE/OPEN/CLOSE tags, so the switch below would ignore it
+            // anyway; this is explicit + self-documenting.) It is still consumed by cq_advance below.
+            if(userData==LIBURING_UDATA_TIMEOUT)
+                continue;
             uint64_t opType=userData&OP_MASK;
             int bufIdx=(int)(userData&IDX_MASK);
             int result=cqe->res;
@@ -783,6 +799,16 @@ bool TransferThreadUring::trySymlinkCopy()
             return true;
         }
     }
+    // Cross-fs MOVE of a symlink: the link is recreated + verified at the destination (every failure
+    // path returned above), so COMPLETE the move by removing the SOURCE link. realMove=true (set at the
+    // top) would otherwise make the completion's `mode==Move && !realMove` gate SKIP the source-unlink
+    // -> the source link + its dir are stranded and the move silently degrades to a copy. COPY keeps
+    // the source. (Check the return per the FS-mutation rule.)
+    if(mode==Ultracopier::Move && source!=destination)
+        if(!unlink(source))
+            ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+
+                                     "] symlink move: unable to remove source link: "+
+                                     internalStringTostring(source)+" ("+strerror(errno)+")");
     readIsClosedVariable=true;
     writeIsClosedVariable=true;
     checkIfAllIsClosedAndDoOperations();

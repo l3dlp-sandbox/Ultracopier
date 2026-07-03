@@ -1579,6 +1579,10 @@ void ListThread::safetyReschedule()
     // never on numberOfInodeOperation -- a stale-completion race during a multi-file put-to-end
     // error storm can leak that counter (observed nInode=3 while 0 threads run) and would wedge a
     // nInode==0 gate forever.
+    // NB this backstop deliberately fires OFTEN (getNumberOfTranferRuning() size-filters out small
+    // files, so a small-file backlog reads 0): that frequent re-pump is what actually recovers a
+    // put-to-end deferral whose event-driven pump was missed. The re-pump is made SAFE (no
+    // double-start of a live entry) by the live-transferId guard in the reset body below -- see there.
     if(getNumberOfTranferRuning()!=0 || (actionToDoListTransferEmpty() && actionToDoListInode.empty()))
     {
         safetyStallTicks=0;//a transfer is running, or nothing pending (idle in tray) -> not stalled
@@ -1599,18 +1603,47 @@ void ListThread::safetyReschedule()
     // of which wedges the scheduler. Clear ALL of it and re-derive by re-pumping; this guarantees a
     // resilient backup always resumes (no permanent stall, no orphaned good file). It runs ONLY on
     // a sustained real stall, so normal copying is untouched.
+    // THE #4 DOUBLE-START ROOT CAUSE. This backstop fires spuriously mid healthy copy (getNumber
+    // OfTranferRuning() size-filters small transfers to 0), so it races the per-file completions,
+    // which are QUEUED signals processed on THIS thread: a worker that just finished is Idle with its
+    // transferId still set until its transferInodeIsClosed slot runs (it does indexOfActionToDoTransfer
+    // (transferId) -> tombstone the entry + clear the id). If we blindly zero that Idle thread's id
+    // here, its pending completion then looks up id 0, fails to find the entry, and NEVER tombstones
+    // it -> the entry lingers isRunning=true/unremoved with no owner -> a later tick re-queues it ->
+    // doNewActions hands the SAME file to a second thread and copies it AGAIN (the duplicate
+    // create-opens). So:
+    //  * liveEntryIds = ids that STILL have a non-tombstone entry: a thread holding such an id has a
+    //    queued completion that will clean up itself -- DO NOT zero it (that is what orphaned it).
+    //  * ownedTransferIds = every id any thread still owns: its entry is being transferred or is
+    //    draining its completion -- it is NOT stranded, so DO NOT re-queue it (a second double-start).
+    // On a GENUINE stall every completion has long since run, so every thread is Idle with id 0 and
+    // both sets are empty -> the truly-stranded entries (crashed thread, missed pump) are re-queued
+    // and the stale Idle ids cleared, exactly as before -- the put-to-end / missed-pump recovery is
+    // preserved.
+    std::unordered_set<uint64_t> liveEntryIds;
+    std::unordered_set<uint64_t> ownedTransferIds;
+    for(size_t i=0;i<actionToDoListTransfer.size();++i)
+        if(!actionToDoListTransfer[i]->removed)
+            liveEntryIds.insert(actionToDoListTransfer[i]->id);
+    for(size_t t=0;t<transferThreadList.size();++t)
+        if(transferThreadList.at(t)->transferId!=0)
+            ownedTransferIds.insert(transferThreadList.at(t)->transferId);
     for(size_t t=0;t<transferThreadList.size();++t)
     {
         TransferThreadImpl *th=transferThreadList.at(t);
-        if(th->getStat()==TransferStat_Idle)//Idle => not transferring; any id it still holds is stale
+        // zero a stale id on an Idle thread ONLY when NO live entry still claims it (else its
+        // completion is merely queued and would be orphaned -- see above)
+        if(th->getStat()==TransferStat_Idle && th->transferId!=0 &&
+                liveEntryIds.find(th->transferId)==liveEntryIds.cend())
         {
             th->transferId=0;
             th->transferSize=0;
         }
     }
     for(size_t i=0;i<actionToDoListTransfer.size();++i)
-        if(!actionToDoListTransfer[i]->removed)
-            actionToDoListTransfer[i]->isRunning=false;//nothing is running -> re-queue every live entry
+        if(!actionToDoListTransfer[i]->removed &&
+                ownedTransferIds.find(actionToDoListTransfer[i]->id)==ownedTransferIds.cend())
+            actionToDoListTransfer[i]->isRunning=false;//re-queue ONLY genuinely-stranded (unowned) entries
     numberOfInodeOperation=0;
     overCheckUsedThread.clear();
     putAtBottomAfterError.clear();

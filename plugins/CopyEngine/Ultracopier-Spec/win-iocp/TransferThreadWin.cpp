@@ -137,6 +137,11 @@ TransferThreadWin::~TransferThreadWin()
     // CloseHandle already cancels pending I/O, so this is belt-and-suspenders here, but it
     // keeps the teardown symmetric with the io_uring backend and is strictly safer.)
     freePipelineBuffers();
+    // Free any QUARANTINED buffers last: their wedged IRPs (if any) are guaranteed gone now that the
+    // worker has stopped and every completion port it used is closed, so nothing can DMA into them.
+    for(char *p : orphanedBuffers)
+        free(p);
+    orphanedBuffers.clear();
 }
 
 void TransferThreadWin::run()
@@ -178,19 +183,26 @@ void TransferThreadWin::run()
 
 void TransferThreadWin::initPipelineBuffers()
 {
+    // Snapshot blockSize ONCE. It can be changed from ANOTHER thread (the speed limiter / setBlockSize,
+    // TransferThreadPipelined::setBlockSize, which writes it without a lock) between the malloc() and the
+    // allocSize store below; reading it twice could record allocSize LARGER than the block actually
+    // malloc'd, and a later ReadFile clamped to that inflated allocSize would overrun the heap block. One
+    // read guarantees the malloc size and allocSize always agree and every buffer is sized consistently.
+    const unsigned int bs=blockSize;
     for(int i=0;i<NUM_BUFFERS;i++)
     {
-        if(pipelineBuffers[i].data==nullptr || pipelineBuffers[i].allocSize!=blockSize)
+        if(pipelineBuffers[i].data==nullptr || pipelineBuffers[i].allocSize!=bs)
         {
             free(pipelineBuffers[i].data);
-            pipelineBuffers[i].data=(char*)malloc(blockSize);
+            pipelineBuffers[i].allocSize=0;   // if malloc fails, allocSize must not keep the old (wrong) size
+            pipelineBuffers[i].data=(char*)malloc(bs);
             if(pipelineBuffers[i].data==nullptr)
             {
                 errorString_internal="Out of memory allocating pipeline buffers";
                 emit errorOnFile(source,errorString_internal);
                 return;
             }
-            pipelineBuffers[i].allocSize=blockSize;
+            pipelineBuffers[i].allocSize=bs;
         }
         pipelineBuffers[i].bytesUsed=0;
         pipelineBuffers[i].state=PipelineBuffer::Free;
@@ -510,6 +522,12 @@ void TransferThreadWin::doTransferPipeline()
 
     // Main event loop — drain a batch of completions, react, re-arm
     OVERLAPPED_ENTRY entries[NUM_BUFFERS];
+    // Bounded completion wait, NOT INFINITE (Bug C): stop()/skip() only SET stopIt (they must not
+    // CloseHandle across threads to wake us -- that races our live ReadFile/WriteFile and the closed handle
+    // is recycled by a sibling inode thread). We poll stopIt/putInPause every UC_IOCP_WAIT_MS. During an
+    // active transfer, completions arrive far faster than this, so the timeout is a zero-cost fallback that
+    // only fires when the pipeline is genuinely idle-waiting (or on a stop/skip/pause).
+    static constexpr DWORD UC_IOCP_WAIT_MS=200;
     while((readsInFlight>0 || writesInFlight>0) && !stopIt && !errorOccurred)
     {
         // Handle pause
@@ -522,9 +540,11 @@ void TransferThreadWin::doTransferPipeline()
         }
 
         ULONG numEntries=0;
-        if(!GetQueuedCompletionStatusEx(iocp,entries,NUM_BUFFERS,&numEntries,INFINITE,FALSE))
+        if(!GetQueuedCompletionStatusEx(iocp,entries,NUM_BUFFERS,&numEntries,UC_IOCP_WAIT_MS,FALSE))
         {
             const DWORD e=GetLastError();
+            if(e==WAIT_TIMEOUT)
+                continue; // nothing completed in this window -> loop back, re-check stopIt/putInPause, wait again
             errorString_internal="GetQueuedCompletionStatusEx failed: "+winErrorString(e);
             ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+"] "+errorString_internal);
             readError=true;
@@ -676,20 +696,25 @@ void TransferThreadWin::doTransferPipeline()
         }
     }
 
-    // On stop/error there may still be ops in flight: cancel them and drain their
-    // (now STATUS_CANCELLED) completions so the kernel never writes into a pipeline
-    // buffer after this function returns and the buffer is reused for the next file.
+    // On stop/error there may still be ops in flight. They MUST be fully accounted for before this
+    // function returns, because the completion port and the pipeline buffers/OVERLAPPEDs are PERSISTENT
+    // and reused for the NEXT file: any completion still owned by the kernel, if it lands after we reuse
+    // (or free) a buffer, is a write-after-free / stale-completion-misattribution -> the probabilistic
+    // STATUS_HEAP_CORRUPTION. (THE #1 root-cause fix.)
     if(readsInFlight>0 || writesInFlight>0)
     {
-        if(sourceHandle!=INVALID_HANDLE_VALUE)
-            CancelIoEx(sourceHandle,nullptr);
-        if(destHandle!=INVALID_HANDLE_VALUE)
-            CancelIoEx(destHandle,nullptr);
+        // Close the handles FIRST: CloseHandle forces the kernel to cancel/complete every pending IRP on
+        // them, which BOUNDS the drain. CancelIoEx alone only REQUESTS cancellation and an IRP wedged in
+        // the device / a filesystem minifilter (dying sector, Defender under load) can outlive any wait.
+        closeFiles();
+        const DWORD deadline=GetTickCount()+2000;
         while(readsInFlight>0 || writesInFlight>0)
         {
+            const DWORD now=GetTickCount();
+            const DWORD waitMs=(now>=deadline)?0:(deadline-now);
             ULONG numEntries=0;
-            if(!GetQueuedCompletionStatusEx(iocp,entries,NUM_BUFFERS,&numEntries,2000,FALSE))
-                break; // timeout/failure: give up draining
+            if(!GetQueuedCompletionStatusEx(iocp,entries,NUM_BUFFERS,&numEntries,waitMs,FALSE))
+                break; // timed out with ops STILL in flight -> a genuinely wedged IRP; quarantine below
             for(ULONG ci=0;ci<numEntries;ci++)
             {
                 if(entries[ci].lpCompletionKey==KEY_SOURCE)
@@ -697,6 +722,40 @@ void TransferThreadWin::doTransferPipeline()
                 else if(entries[ci].lpCompletionKey==KEY_DEST)
                     writesInFlight--;
             }
+        }
+        if(readsInFlight>0 || writesInFlight>0)
+        {
+            // A wedged IRP will complete/cancel LATER: its kernel DMA still references this buffer's
+            // data and writes status into this buffer's OVERLAPPED. We must NEVER reuse or free those.
+            // (1) QUARANTINE every still-in-flight buffer (orphan its memory; freed only in ~dtor, after
+            //     the worker has fully stopped) so the next file allocates a FRESH block instead.
+            // (2) RECREATE the completion port so that, whenever the stale packet finally posts, it
+            //     targets the destroyed port and is DROPPED -- it can never be dequeued by a later file's
+            //     GetQueuedCompletionStatusEx and mis-mapped (by OVERLAPPED address) to a reused buffer.
+            // Bounded: <= NUM_BUFFERS buffers orphaned per unrecoverable stuck-I/O event; no hang.
+            for(int i=0;i<NUM_BUFFERS;i++)
+                if(pipelineBuffers[i].state==PipelineBuffer::Reading ||
+                   pipelineBuffers[i].state==PipelineBuffer::Writing)
+                {
+                    orphanedBuffers.push_back(pipelineBuffers[i].data);
+                    pipelineBuffers[i].data=nullptr;      // next initPipelineBuffers() mallocs a fresh block
+                    pipelineBuffers[i].allocSize=0;
+                    pipelineBuffers[i].state=PipelineBuffer::Free;
+                }
+            if(iocpInitialized)
+            {
+                CloseHandle(iocp);
+                iocp=CreateIoCompletionPort(INVALID_HANDLE_VALUE,nullptr,0,0);
+                if(iocp==nullptr)
+                {
+                    // Cannot continue without a completion port (same fatal stance as run()).
+                    std::cerr << "CreateIoCompletionPort (recreate) failed: " << winErrorString(GetLastError()) << std::endl;
+                    iocpInitialized=false;
+                    abort();
+                }
+            }
+            readsInFlight=0;
+            writesInFlight=0;
         }
     }
 

@@ -886,7 +886,10 @@ void TransferThreadPipelined::stop()
         return;
     }
     pauseMutex.release();
-    closeFiles();
+    // The worker is BLOCKED in doTransferPipeline()'s completion wait. Interrupt it so it notices stopIt
+    // and closes its OWN handles/fds (default = closeFiles() here; IOCP polls stopIt itself and overrides
+    // this to a no-op to avoid the cross-thread CloseHandle race -- see interruptTransferForStop()).
+    interruptTransferForStop();
 }
 
 void TransferThreadPipelined::skip()
@@ -928,10 +931,14 @@ void TransferThreadPipelined::skip()
             return;
         }
         pauseMutex.release();
-        closeFiles();
+        // Interrupt the blocked worker (default closeFiles(); IOCP no-op + self-poll -- see stop()).
+        interruptTransferForStop();
         // #9 source-vanish guard (mirrors line ~778): on a skip, only remove the destination if it is
         // OURS. A user's pre-existing non-empty dest (an OVERWRITE whose source vanished before the first
         // byte -- exists(source) is a stat that still succeeds) must NOT be deleted. (iouring_source_vanish)
+        // NB when the worker self-closes (IOCP), the dest handle may still be OPEN here so this DeleteFile
+        // can fail with a sharing violation; that is harmless -- the worker's own stop-cleanup
+        // (ifCanStartTransfer, "stopIt" branch) repeats this exact guard after it closes the handle.
         if(!source.empty() && needRemove && destinationIsOursToRemove())
             if(exists(source) && source!=destination)
                 unlink(destination);

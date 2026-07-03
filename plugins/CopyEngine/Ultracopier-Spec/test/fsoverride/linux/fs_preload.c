@@ -113,6 +113,7 @@
 #include <pthread.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <dirent.h>        /* readdir/readdir64 + DT_UNKNOWN, for the dtunknown verb */
 #include <sys/syscall.h>   /* SYS_gettid, for the OPS-TRACE tid column */
 #include <utime.h>
 #include <sys/time.h>
@@ -149,10 +150,17 @@ enum uc_verb {
                      /* the engine's short-read REFILL path; data is identical, just chunked     */
     UC_ENOSPC,       /* write() on matching path succeeds to <bytes> cumulative, then fails ENOSPC: */
                      /* models the destination filling up partway through a file (dest-full)       */
-    UC_RENAMEFAIL    /* rename() to a matching DEST path BLOCKS ~250ms then fails EACCES (non-EXDEV, */
+    UC_RENAMEFAIL,   /* rename() to a matching DEST path BLOCKS ~250ms then fails EACCES (non-EXDEV, */
                      /* so no copy-pipeline fallback): models a same-drive move whose atomic rename */
                      /* hangs on a stuck mount long enough for an interactive skip/cancel to land -- */
                      /* the #9 realMove data-loss reproducer (dest must survive untouched)          */
+    UC_DTUNKNOWN,    /* readdir/readdir64 report EVERY entry's d_type as DT_UNKNOWN (models sshfs/some */
+                     /* network + FUSE mounts): the scan MUST lstat-fallback to classify dirs, else a */
+                     /* directory read as DT_UNKNOWN is mistaken for a file and its whole subtree dropped */
+    UC_READDIRFAIL   /* readdir/readdir64 fails NULL+EIO after <n> entries on a DIR whose opendir path */
+                     /* matches <substr> (models a bad sector in a directory's OWN blocks): the scan */
+                     /* MUST surface it, not treat the partial listing as a complete directory and */
+                     /* silently drop every entry after the fault                                    */
 };
 
 struct uc_rule {
@@ -369,6 +377,18 @@ static void uc_parse(void)
             strncpy(r->arg, arg, UC_MAX_ARG - 1);
         } else if (strcmp(tok, "renamefail") == 0) {
             r->verb = UC_RENAMEFAIL;
+            strncpy(r->arg, arg, UC_MAX_ARG - 1);
+        } else if (strcmp(tok, "dtunknown") == 0) {
+            r->verb = UC_DTUNKNOWN;   /* path-independent: arg stays "" so uc_match(UC_DTUNKNOWN,"") matches */
+        } else if (strcmp(tok, "readdirfail") == 0) {
+            /* arg is "<substr>:<n>"; split on the LAST colon (see eio_after). num = REAL entries
+             * (excl. . and ..) returned before readdir faults NULL+EIO on that DIR. */
+            r->verb = UC_READDIRFAIL;
+            char *lastcolon = strrchr(arg, ':');
+            if (lastcolon != NULL) {
+                *lastcolon = '\0';
+                r->num = strtol(lastcolon + 1, NULL, 10);
+            }
             strncpy(r->arg, arg, UC_MAX_ARG - 1);
         } else if (strcmp(tok, "eio_after") == 0) {
             /* arg is "<substr>:<bytes>"; split on the LAST colon so a path-substr
@@ -1593,4 +1613,113 @@ int fallocate64(int fd, int mode, off64_t offset, off64_t len)
     int rc = real_fallocate64(fd, mode, offset, len);
     uc_falloc_trace(fd, (long long)len, rc);
     return rc;
+}
+
+/* ---- directory-listing fault injection: dtunknown + readdirfail ---------------------------------- */
+
+/* readdirfail: per-DIR* tracking so readdir can fault NULL+EIO after <n> REAL entries on a matching
+ * directory (models a bad sector in a directory's OWN blocks). Recorded at opendir, cleared at closedir. */
+#define UC_MAX_DIRTRACK 64
+struct uc_dirtrack {
+    DIR *dir;      /* the open DIR* (key) */
+    long count;    /* REAL entries (excl. . and ..) returned so far */
+    long limit;    /* fault once count reaches this */
+    int  used;
+};
+static struct uc_dirtrack g_dirtrack[UC_MAX_DIRTRACK];
+static pthread_mutex_t     g_dirtrack_mtx = PTHREAD_MUTEX_INITIALIZER;
+
+static void uc_dirtrack_add(DIR *dp, const char *path)
+{
+    const struct uc_rule *r = uc_match(UC_READDIRFAIL, path);
+    if (r == NULL)
+        return;   /* no readdirfail rule for this dir -> not tracked (fast path for every other opendir) */
+    pthread_mutex_lock(&g_dirtrack_mtx);
+    for (int i = 0; i < UC_MAX_DIRTRACK; i++) {
+        if (!g_dirtrack[i].used) {
+            g_dirtrack[i].used = 1;
+            g_dirtrack[i].dir = dp;
+            g_dirtrack[i].count = 0;
+            g_dirtrack[i].limit = r->num;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&g_dirtrack_mtx);
+}
+
+static void uc_dirtrack_del(DIR *dp)
+{
+    pthread_mutex_lock(&g_dirtrack_mtx);
+    for (int i = 0; i < UC_MAX_DIRTRACK; i++)
+        if (g_dirtrack[i].used && g_dirtrack[i].dir == dp) {
+            g_dirtrack[i].used = 0;
+            g_dirtrack[i].dir = NULL;
+            break;
+        }
+    pthread_mutex_unlock(&g_dirtrack_mtx);
+}
+
+/* Called AFTER a successful real readdir with the entry name. Returns 1 if THIS entry must be faulted
+ * away (count reached the limit); else counts it (. and .. do not count) and returns 0. */
+static int uc_dir_should_fault(DIR *dp, const char *name)
+{
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
+        return 0;
+    int fault = 0;
+    pthread_mutex_lock(&g_dirtrack_mtx);
+    for (int i = 0; i < UC_MAX_DIRTRACK; i++)
+        if (g_dirtrack[i].used && g_dirtrack[i].dir == dp) {
+            if (g_dirtrack[i].count >= g_dirtrack[i].limit)
+                fault = 1;
+            else
+                g_dirtrack[i].count++;
+            break;
+        }
+    pthread_mutex_unlock(&g_dirtrack_mtx);
+    return fault;
+}
+
+DIR *opendir(const char *name)
+{
+    UC_REAL(opendir);
+    DIR *dp = real_opendir(name);
+    if (dp != NULL)
+        uc_dirtrack_add(dp, name);
+    return dp;
+}
+
+int closedir(DIR *dirp)
+{
+    UC_REAL(closedir);
+    uc_dirtrack_del(dirp);
+    return real_closedir(dirp);
+}
+
+/* dtunknown: report EVERY entry's d_type as DT_UNKNOWN (sshfs/network/FUSE model, forces the scan to
+ * lstat-classify). readdirfail: after <n> real entries, return NULL+EIO (bad-dir-block model, forces the
+ * scan to surface the partial-read error instead of silently treating it as a complete directory). Both
+ * readdir and readdir64 are interposed: ultracopier builds _FILE_OFFSET_BITS=64 so its readdir() binds to
+ * readdir64@GLIBC, but we cover both to be safe. */
+struct dirent *readdir(DIR *dirp)
+{
+    UC_REAL(readdir);
+    struct dirent *e = real_readdir(dirp);
+    if (e == NULL)
+        return NULL;
+    if (uc_dir_should_fault(dirp, e->d_name)) { errno = EIO; return NULL; }
+    if (uc_match(UC_DTUNKNOWN, "") != NULL)
+        e->d_type = DT_UNKNOWN;
+    return e;
+}
+
+struct dirent64 *readdir64(DIR *dirp)
+{
+    UC_REAL(readdir64);
+    struct dirent64 *e = real_readdir64(dirp);
+    if (e == NULL)
+        return NULL;
+    if (uc_dir_should_fault(dirp, e->d_name)) { errno = EIO; return NULL; }
+    if (uc_match(UC_DTUNKNOWN, "") != NULL)
+        e->d_type = DT_UNKNOWN;
+    return e;
 }

@@ -84,12 +84,15 @@ void ScanFileOrFolder::addToList(const std::vector<INTERNALTYPEPATH>& sources,co
     #ifdef WIDESTRING
     QFileInfo destinationInfo(QString::fromStdWString(this->destination));
     ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"check symblink: "+destinationInfo.absoluteFilePath().toStdString()+", destination: "+TransferThread::internalStringTostring(destination));
+    int destSymDepth=0;   // Linux MAXSYMLINKS: cap dest-symlink resolution so a CYCLIC dest symlink
+                          // (a->b->a) cannot spin this scan loop forever (hang).
     #ifdef WIDESTRING
     while(TransferThread::is_symlink(destinationInfo.absoluteFilePath().toStdWString()))
     #else
     while(TransferThread::is_symlink(destinationInfo.absoluteFilePath().toStdString()))
     #endif
     {
+        if(++destSymDepth>40) { ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"destination symlink chain too deep (cyclic?), stop resolving: "+TransferThread::internalStringTostring(destination)); break; }
         ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"resolv destination to: "+destinationInfo.symLinkTarget().toStdString());
         if(QFileInfo(destinationInfo.symLinkTarget()).isAbsolute())
             this->destination=destinationInfo.symLinkTarget().toStdWString();
@@ -106,8 +109,10 @@ void ScanFileOrFolder::addToList(const std::vector<INTERNALTYPEPATH>& sources,co
     #else
     QFileInfo destinationInfo(QString::fromStdString(this->destination));
     ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"check symblink: "+destinationInfo.absoluteFilePath().toStdString());
+    int destSymDepth2=0;   // Linux MAXSYMLINKS: cap (cyclic dest symlink must not spin forever)
     while(destinationInfo.isSymLink())
     {
+        if(++destSymDepth2>40) { ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"destination symlink chain too deep (cyclic?), stop resolving: "+TransferThread::internalStringTostring(destination)); break; }
         ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"resolv destination to: "+destinationInfo.symLinkTarget().toStdString());
         if(QFileInfo(destinationInfo.symLinkTarget()).isAbsolute())
             this->destination=destinationInfo.symLinkTarget().toStdString();
@@ -152,8 +157,33 @@ std::vector<INTERNALTYPEPATH> ScanFileOrFolder::parseWildcardSources(const std::
                     if(toParseFirst.empty())
                         toParseFirst=TransferThread::internalStringTostring(text_slash);
                     std::vector<std::vector<std::string> > newRecomposedSource;
-                    stringreplaceAll(toParseFirst,"*","[^/\\\\]*");
-                    std::regex toResolv=std::regex(toParseFirst);
+                    // Build the match regex from the glob component so it is ALWAYS a valid pattern:
+                    // '*' becomes the wildcard [^/\\]*, and EVERY regex metacharacter in the (storable)
+                    // filename is escaped to match LITERALLY. Ultracopier builds with exceptions disabled
+                    // on some targets, so std::regex(<invalid>) must never be reachable -- a stray '('/'['
+                    // in a name would otherwise throw std::regex_error and std::terminate() the whole app.
+                    // (Shell-glob semantics: only '*' is special; this also stops '.', '(', ... being
+                    // mis-interpreted as regex, which the old raw *->[^/\\]* replace let leak through.)
+                    std::string reStr;
+                    reStr.reserve(toParseFirst.size()*2);
+                    for(const char c : toParseFirst)
+                    {
+                        if(c=='*')
+                            reStr+="[^/\\\\]*";
+                        else
+                        {
+                            switch(c)
+                            {
+                                case '\\': case '^': case '$': case '.': case '|': case '?':
+                                case '+': case '(': case ')': case '[': case ']': case '{': case '}':
+                                    reStr+='\\';
+                                    break;
+                                default: break;
+                            }
+                            reStr+=c;
+                        }
+                    }
+                    std::regex toResolv=std::regex(reStr);
                     unsigned int index_recomposedSource=0;
                     while(index_recomposedSource<recomposedSource.size())//parse each url part
                     {
@@ -357,7 +387,9 @@ INTERNALTYPEPATH ScanFileOrFolder::resolvDestination(const INTERNALTYPEPATH &des
     } while (nbytes == (ssize_t)buf.size());
     if (nbytes!=-1)
       buf.resize(nbytes);
+    int resolvSymDepth=0;   // Linux MAXSYMLINKS: cap (a cyclic symlink keeps readlink() succeeding -> spin)
     while(nbytes!=-1) {
+        if(++resolvSymDepth>40) { ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"symlink chain too deep (cyclic?), stop resolving destination"); break; }
         temp=FSabsolutePath(temp);
         if(!stringEndsWith(destination,'/')
             #ifdef Q_OS_WIN32

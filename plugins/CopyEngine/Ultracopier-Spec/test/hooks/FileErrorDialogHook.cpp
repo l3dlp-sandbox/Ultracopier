@@ -17,6 +17,7 @@
 #include <QDialog>
 #include <cstdlib>
 #include <cstring>
+#include <cstdio>
 
 namespace {
 
@@ -25,7 +26,19 @@ class FileErrorDialogTest : public FileErrorDialog
 {
 public:
     FileErrorDialogTest(QWidget *parent, INTERNALTYPEPATH fileInfo, std::string errorString, const ErrorType &errorType, FacilityInterface *facilityEngine)
-        : FileErrorDialog(parent,fileInfo,errorString,errorType,facilityEngine) {}
+        : FileErrorDialog(parent,fileInfo,errorString,errorType,facilityEngine)
+    {
+        // Optional invocation marker: if the case set ULTRACOPIER_TEST_ERROR_MARKER, append one line
+        // per dialog CREATED -- i.e. per error actually SURFACED to the user. Lets a case prove an error
+        // was raised (e.g. the partial-readdir folder-read error) rather than silently swallowed. Inert
+        // (no file touched) unless the env is set, so no other case is affected.
+        const char *m=getenv("ULTRACOPIER_TEST_ERROR_MARKER");
+        if(m!=NULL && m[0]!='\0')
+        {
+            FILE *f=fopen(m,"a");
+            if(f!=NULL) { fprintf(f,"error type=%d\n",(int)errorType); fclose(f); }
+        }
+    }
 
     /// \brief the "trigger event": never pop the modal GUI, accept immediately. The action dispatch
     /// (Skip/PutToEnd/Cancel, and Retry->resume on io_uring) is what we assert, and that is independent

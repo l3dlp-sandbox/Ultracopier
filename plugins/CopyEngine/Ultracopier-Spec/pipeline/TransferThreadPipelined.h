@@ -119,6 +119,15 @@ protected:
     virtual void closeFiles()=0;
     /// \brief run the async read/write pipeline source->destination
     virtual void doTransferPipeline()=0;
+    /// \brief interrupt a doTransferPipeline() that is BLOCKED waiting for I/O completions, called from
+    /// the SCHEDULER (ListThread) thread by stop()/skip() to make the worker notice stopIt/needSkip and
+    /// tear itself down. Default = closeFiles() (the historical wake: closing the fds/handles forces the
+    /// pending ops to complete so the blocking wait returns). A backend whose worker POLLS stopIt itself
+    /// (e.g. a bounded completion-wait) overrides this to a NO-OP: closing the handles from another thread
+    /// while the worker is mid ReadFile/WriteFile is a data race (the closed HANDLE/fd is even recycled by a
+    /// sibling inode thread) -- the IOCP heap-corruption Bug C. Letting the worker close its OWN handles
+    /// removes the cross-thread hazard entirely.
+    virtual void interruptTransferForStop() { closeFiles(); }
     virtual bool remainSourceOpen() const=0;
     virtual bool remainDestinationOpen() const=0;
     /// \brief handle a symlinked source. Return true if fully handled (success OR error

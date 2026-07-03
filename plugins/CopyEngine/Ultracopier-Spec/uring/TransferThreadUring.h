@@ -72,6 +72,12 @@ private:
     int openDestFile(uint64_t startSize) override;
     void closeFiles() override;
     void doTransferPipeline() override;
+    /// \brief Bug C: the io_uring worker POLLS stopIt itself (doTransferPipeline's completion wait is
+    /// bounded via io_uring_wait_cqe_timeout, not INFINITE), so stop()/skip() must NOT submit a close SQE
+    /// on THIS ring from the scheduler thread to wake it -- io_uring's SQ ring is single-producer, so a
+    /// cross-thread io_uring_get_sqe+io_uring_submit races the worker. No-op here; the worker notices
+    /// stopIt within one poll interval and closes its own fds.
+    void interruptTransferForStop() override {}
     bool remainSourceOpen() const override;
     bool remainDestinationOpen() const override;
     /// \brief futimens() on the still-open destFd using the cached source times (butime),

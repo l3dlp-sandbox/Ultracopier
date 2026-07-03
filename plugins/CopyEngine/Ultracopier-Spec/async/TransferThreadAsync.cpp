@@ -742,6 +742,18 @@ void TransferThreadAsync::ifCanStartTransfer()
                 }
             }
             successFull=true;
+            // Cross-fs MOVE of a symlink: the link was just recreated + verified at the destination
+            // above (symlink() succeeded -> successFull), so COMPLETE the move by removing the SOURCE
+            // link. Without this, realMove=true (set at the top of this branch) makes the completion's
+            // source-unlink gate `mode==Move && !realMove` SKIP it -> the source link (and thus its
+            // whole directory) is stranded and the move silently degrades to a copy. Only on recreation
+            // success (never on a failed symlink() -- that returned early above -> no source loss).
+            // COPY mode keeps the source, as it must. (Check the return per the FS-mutation rule.)
+            if(mode==Ultracopier::Move && source!=destination)
+                if(!unlink(source))
+                    ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+
+                                             "] symlink move: unable to remove source link: "+
+                                             internalStringTostring(source)+" ("+strerror(errno)+")");
         }
         else
         #endif

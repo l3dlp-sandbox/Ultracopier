@@ -25,6 +25,7 @@ empty and cannot affect the existing backends. */
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <vector>
 
 /// \brief Windows IOCP implementation of the pipelined transfer I/O hooks
 class TransferThreadWin : public TransferThreadPipelined
@@ -53,6 +54,13 @@ private:
     };
     PipelineBuffer pipelineBuffers[NUM_BUFFERS];
 
+    // QUARANTINE for buffers whose overlapped op could NOT be drained (a wedged IRP: dying sector /
+    // Defender-stalled write that outlives the bounded cancel-drain). The kernel may still DMA into
+    // such a buffer whenever the IRP finally completes, so it must NEVER be reused or freed while the
+    // worker still lives -- we orphan it here and free it only in the destructor, AFTER wait(). Bounded:
+    // at most NUM_BUFFERS entries per unrecoverable stuck-I/O event.
+    std::vector<char*> orphanedBuffers;
+
     HANDLE iocp;            // I/O completion port, all handles associated to it
     bool iocpInitialized;
 
@@ -75,6 +83,11 @@ private:
     int openDestFile(uint64_t startSize) override;
     void closeFiles() override;
     void doTransferPipeline() override;
+    /// \brief Bug C: the IOCP worker POLLS stopIt itself (doTransferPipeline's completion wait is bounded,
+    /// not INFINITE), so stop()/skip() must NOT CloseHandle across threads to wake it -- that races the
+    /// worker's live ReadFile/WriteFile and recycles the handle to a sibling inode thread. No-op here; the
+    /// worker notices stopIt within one poll interval and closes its own handles.
+    void interruptTransferForStop() override {}
     bool remainSourceOpen() const override;
     bool remainDestinationOpen() const override;
     /// \brief SetFileTime() on the still-open destHandle using the cached source times

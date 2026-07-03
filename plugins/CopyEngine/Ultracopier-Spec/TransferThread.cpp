@@ -314,7 +314,47 @@ bool TransferThread::isSame()
 {
     //check if source and destination is not the same
     //source.absoluteFilePath()==destination.absoluteFilePath() not work is source don't exists
-    if(source==destination)
+    const bool sameString=(source==destination);
+    bool aliasedSameFile=false;
+    #ifdef Q_OS_UNIX
+    if(!sameString)
+    {
+        // DATA-LOSS GUARD (coreutils-style same-file detection): the path STRINGS differ, but the
+        // destination can reach the SAME inode as the source through a symlinked path COMPONENT
+        // (e.g. dest /tmp/alias/f where /tmp/alias -> the source's dir) or a hardlink. Copying then
+        // would open(dest,O_TRUNC) the source file itself -> truncate it, and a MOVE would then
+        // unlink(source) -> the file is DESTROYED (isSameDrive is path-string based, so /tmp vs the
+        // real mount reads cross-drive and takes the copy+delete path). String compare + the
+        // source!=destination unlink gates all miss it. Detect it by (st_dev,st_ino): stat() FOLLOWS
+        // symlinks so the alias resolves. Only when the destination EXISTS (a same-file needs a
+        // resolvable dest) -> a fresh copy pays a single stat and returns. POSIX only: Windows
+        // stat().st_ino is 0/unreliable and would false-positive (junction/hardlink same-file on
+        // IOCP needs GetFileInformationByHandle -- separate).
+        struct stat ds;
+        if(::stat(internalStringTostring(destination).c_str(),&ds)==0)
+        {
+            struct stat ss;
+            if(::stat(internalStringTostring(source).c_str(),&ss)==0
+                    && ss.st_dev==ds.st_dev && ss.st_ino==ds.st_ino)
+                aliasedSameFile=true;
+        }
+    }
+    #endif
+    if(aliasedSameFile)
+    {
+        // Copying/moving a file ONTO ITSELF (reached via a symlink alias or hardlink) is a NO-OP: the
+        // only safe action is to skip it. Do NOT route it through the collision policy -- an OVERWRITE
+        // there would open(dest,O_TRUNC) the source and destroy it, and the FileIsSameDialog would
+        // block a headless run. A direct skip keeps the source byte-perfect for EVERY policy. (The
+        // string-equal self-copy below keeps its existing per-policy handling, unchanged.)
+        ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"["+std::to_string(id)+
+                                 "] source and destination are the SAME FILE via a path alias/hardlink -> skip (no self-destruction): "+
+                                 internalStringTostring(source));
+        transfer_stat=TransferStat_Idle;
+        emit postOperationStopped();
+        return true;
+    }
+    if(sameString)
     {
         #ifdef ULTRACOPIER_PLUGIN_DEBUG
         if(!is_file(destination))
@@ -1502,14 +1542,17 @@ bool TransferThread::rmdir(const INTERNALTYPEPATH &path)
 #ifdef Q_OS_UNIX
 bool TransferThread::entryInfoList(const INTERNALTYPEPATH &path,std::vector<dirent_uc> &list)
 {
+    list.clear();//fresh read: a folder-error RETRY re-calls this, and must NOT append onto a prior partial read
     DIR *dp;
     struct dirent *ep;
     dp=opendir(TransferThread::internalStringTostring(path).c_str());
     if(dp!=NULL)
     {
-        do {
+        for(;;) {
+            errno=0;//readdir returns NULL on EOF (errno unchanged) OR on error (errno set) -- tell them apart
             ep=readdir(dp);
-            if(ep!=NULL)
+            if(ep==NULL)
+                break;
             {
                 const std::string name(ep->d_name);
                 if(name!="." && name!="..")
@@ -1523,14 +1566,45 @@ bool TransferThread::entryInfoList(const INTERNALTYPEPATH &path,std::vector<dire
                     else
                         return false;
                     #else
-                    tempValue.isFolder=ep->d_type==DT_DIR;
+                    if(ep->d_type==DT_DIR)
+                        tempValue.isFolder=true;
+                    else if(ep->d_type==DT_UNKNOWN)
+                    {
+                        // Some filesystems (sshfs, several network / FUSE mounts, older FS) never
+                        // populate d_type -> every entry reads DT_UNKNOWN. Trusting d_type==DT_DIR
+                        // alone then mis-classifies a DIRECTORY as a file, so the scan never recurses
+                        // it and its WHOLE subtree is silently dropped. Fall back to lstat to classify
+                        // it. lstat (not stat) matches the raw-dirent meaning: a symlink stays a
+                        // symlink (isFolder=false -> the engine copies the link, never follows it into
+                        // recursion), only a real directory recurses. An unreadable entry -> treat as a
+                        // non-folder (a file); the transfer path then surfaces the per-file error.
+                        struct stat sp;
+                        if(lstat((TransferThread::internalStringTostring(path)+"/"+name).c_str(),&sp)==0)
+                            tempValue.isFolder=S_ISDIR(sp.st_mode);
+                        else
+                            tempValue.isFolder=false;
+                    }
+                    else
+                        tempValue.isFolder=false;
                     #endif
                     tempValue.d_name=TransferThread::stringToInternalString(ep->d_name);
                     list.push_back(tempValue);
                 }
             }
-        } while(ep!=NULL);
+        }
+        const int readErr=errno;//errno right after the NULL-returning readdir (0 == clean end-of-directory)
         (void) closedir(dp);
+        if(readErr!=0)
+        {
+            // The listing was cut short by an I/O error (e.g. a bad sector in the directory's OWN blocks
+            // on a dying disk), NOT a clean end-of-directory. Returning true here would treat the folder
+            // as FULLY read and SILENTLY drop every entry after the fault -- the exact "lose good data
+            // without informing the user" failure the dying-disk salvage use-case forbids. Surface it:
+            // the caller (ScanFileOrFolder) emits errorOnFolder + applies the folderError policy; the
+            // entries read BEFORE the fault stay in `list` and are still copied (best-effort salvage).
+            errno=readErr;//the caller reads errno for the error message
+            return false;
+        }
         return true;
     }
     return false;
