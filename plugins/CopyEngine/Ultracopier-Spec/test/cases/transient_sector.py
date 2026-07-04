@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 """Transient (recoverable) sector: a source file whose reads fail EIO the first few
 times, then succeed -- exactly what a flaky dying-HDD sector does (it reads on retry).
-The healthy backup behaviour is to NOT give up after one error: with fileError =
-PUT_TO_END the failing file is DEFERRED to the end and retried after the first pass.
+The healthy backup behaviour is to NOT give up after one error.
 
 We name the flaky file to contain 'RECOVER' and inject:
     UC_FS_SCENARIO = "flaky:RECOVER:2"
 i.e. the first 2 read attempts on that path (across the whole process) fail EIO, then
-every read succeeds. The first transfer attempt trips the 2 failures and the file is
-put-to-end; by the time it is retried the flaky budget is spent, so the retry reads
-clean and the file is copied in full.
+every read succeeds.
+
+Put-to-end semantics (see the CLAUDE.md "Put to end" note): a failing file is deferred ONE pass
+and retried; if it STILL fails after that one deferred retry, the engine escalates to the Ask dialog
+(never a 16x retry storm). flaky:RECOVER:2 fails attempt 1 (-> put-to-end) and attempt 2 (the deferred
+retry) -> the dialog is shown -> the scripted answer here is RETRY -> attempt 3 reads clean (the flaky
+budget is spent) and the file is copied in full. This is exactly the design's recovery path: one auto
+retry, then ASK, and a genuinely flaky sector recovers when the user (here the hook) chooses Retry.
 
 ASSERTS:
   * r.completed and r.stayed_alive   -- no hang, no crash on the transient error
@@ -43,13 +47,19 @@ def run(backends=None, memcheck=H.NONE) -> bool:
         dest = K.fresh_dest("transient_dest")
         copied = os.path.join(dest, base)
         K.with_scenario("flaky:RECOVER:2")
-        r = H.run(H.ASYNC, "cp", [src], dest,
-                  file_collision=H.FileCollision.OVERWRITE,
-                  folder_collision=H.FolderCollision.MERGE,
-                  file_error=H.FileError.PUT_TO_END,   # defer + retry the flaky file
-                  expect_dir=None,
-                  fs_preload=K.fs_so())
-        K.with_scenario("")
+        # put-to-end gives ONE deferred retry then escalates to Ask; the scripted dialog answers RETRY,
+        # so attempt 3 (flaky budget spent) reads clean and the flaky sector recovers.
+        os.environ["ULTRACOPIER_TEST_FILE_ERROR_ACTION"] = "retry"
+        try:
+            r = H.run(H.ASYNC, "cp", [src], dest,
+                      file_collision=H.FileCollision.OVERWRITE,
+                      folder_collision=H.FolderCollision.MERGE,
+                      file_error=H.FileError.PUT_TO_END,   # defer once, then ask -> retry -> recovers
+                      expect_dir=None,
+                      fs_preload=K.fs_so())
+        finally:
+            K.with_scenario("")
+            os.environ.pop("ULTRACOPIER_TEST_FILE_ERROR_ACTION", None)
 
         resilient = r.completed and r.stayed_alive
         # The RECOVER file must EVENTUALLY be present and byte-identical (recovered).

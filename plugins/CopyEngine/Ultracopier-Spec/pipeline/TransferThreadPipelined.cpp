@@ -924,9 +924,18 @@ void TransferThreadPipelined::skip()
         needSkip=true;
         if(realMove)
         {
+            // Store Idle BEFORE the queued completion emits (the same order as every other
+            // completion emitter here: checkIfAllIsClosedAndDoOperations and the end-block below).
+            // skip() runs on the CopyEngine/main thread while postOperationStopped() is a
+            // QueuedConnection into the concurrently-running ListThread; transferInodeIsClosed()
+            // consumes the ONE-SHOT completion behind a getStat()!=Idle gate, so emitting first
+            // let ListThread read the still-Transfer stat and DROP the completion -- entry never
+            // tombstoned, thread Idle yet still owning the transferId, safetyReschedule refuses
+            // both rescues -> permanent end-of-copy hang (skip-after-put-to-end of an un-creatable
+            // symlink, io_uring/IOCP).
+            transfer_stat=TransferStat_Idle;
             emit readStopped();
             emit postOperationStopped();
-            transfer_stat=TransferStat_Idle;
             emit pushStat(transfer_stat,transferId);
             return;
         }

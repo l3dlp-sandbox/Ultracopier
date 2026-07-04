@@ -264,6 +264,16 @@ void CopyEngine::errorOnFile(INTERNALTYPEPATH fileInfo, std::string errorString,
     }
     //load the action
     FileErrorAction tempFileErrorAction=alwaysDoThisActionForFileError;
+    // "Put to end" gives each failing file ONE deferred retry: it is sent to the bottom and re-tried once
+    // after the rest of the pass. If it has ALREADY been deferred at least once (thread->deferCount>=1) and
+    // still fails, do NOT keep deferring (which would 16x-storm a permanently un-creatable symlink -- Windows
+    // 1314 -- or a dead sector, and appear hung). Escalate to the Ask dialog so the user decides: Retry (a
+    // genuinely flaky sector recovers) or Skip. This runs HERE, while the transfer thread is in its clean
+    // error-wait state (transfer_stat=Transfer, NOT in the put-to-end drain), so thread->skip() of an errored
+    // symlink completes cleanly on the io_uring/IOCP pipelined backend -- unlike a skip that races an
+    // in-flight put-to-end drain (which strands the entry). See the CLAUDE.md "Put to end" note.
+    if(tempFileErrorAction==FileError_PutToEndOfTheList && thread!=NULL && thread->deferCount>=1)
+        tempFileErrorAction=FileError_NotSet;// -> the interactive Ask dialog (default case below)
     switch(tempFileErrorAction)
     {
         case FileError_Skip:

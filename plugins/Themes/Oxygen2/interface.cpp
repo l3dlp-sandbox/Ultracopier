@@ -591,15 +591,22 @@ void Themes::actionInProgess(const Ultracopier::EngineActionInProgress &action)
             }
         break;
         case Ultracopier::Idle:
+            // Completion: force the TOTAL bar to a complete state (value == max). If no general
+            // progression was ever pushed (a sub-second copy) or the last push was below max, the
+            // value stays < maximum -- and the Fusion style keeps a QProgressStyleAnimation running
+            // for ANY visible progress bar whose value < maximum, repainting the window forever
+            // when it stays open after an error (the error tab) -- the post-Idle CPU-noise "hang".
             if(darkUi)
             {
                 progressBar_all->setMaximum(65535);
                 progressBar_all->setMinimum(0);
+                progressBar_all->setValue(65535);
             }
             else
             {
                 ui->progressBar_all->setMaximum(65535);
                 ui->progressBar_all->setMinimum(0);
+                ui->progressBar_all->setValue(65535);
             }
             // Completion: restore the per-file bar to a determinate, complete state. It may have
             // been left in indeterminate "busy" mode (setRange(0,0)) for an unknown-progress file

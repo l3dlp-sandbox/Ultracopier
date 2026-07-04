@@ -245,6 +245,18 @@ void ListThread::transferInodeIsClosed()
         temp_transfer_thread->transferId=0;
         temp_transfer_thread->transferSize=0;
         putAtBottomAfterError.erase(temp_transfer_thread);
+        // If this put-to-end drain EMPTIED the transfer list, the deferred folder-date (SyncDate)
+        // actions parked in actionToDoListInode_afterTheTransfer must be merged into the active inode
+        // list -- the SAME merge the normal-completion path does below (see the isFound branch). Without
+        // it, a job whose LAST transfer leaves via put-to-end strands every folder finalization forever:
+        // all bytes copied, only directories pending, CPU ~0%, never Idle -- the end-of-copy HANG seen
+        // copying a tree of un-creatable symlinks (Windows 1314 ERROR_PRIVILEGE_NOT_HELD, given up after
+        // the retry cap). safetyReschedule() does not inspect afterTheTransfer, so nothing else repairs it.
+        if(actionToDoListTransferEmpty())
+        {
+            actionToDoListInode.insert(actionToDoListInode.cbegin(),actionToDoListInode_afterTheTransfer.cbegin(),actionToDoListInode_afterTheTransfer.cend());
+            actionToDoListInode_afterTheTransfer.clear();
+        }
         doNewActions_inode_manipulation();
         doNewActions_start_transfer();
         // A put-to-end attempt drains through THIS early-return path, which bypassed the all-lists-empty
@@ -1299,6 +1311,9 @@ void ListThread::doNewActions_inode_manipulation()
                     }
                     currentTransferThread->transferId=currentActionToDoTransfer.id;
                     currentTransferThread->transferSize=currentActionToDoTransfer.size;
+                    // Carry the entry's put-to-end retry count onto the thread so errorOnFile can decide,
+                    // BEFORE deferring again, to escalate to the Ask dialog (one deferred pass then ask).
+                    currentTransferThread->deferCount=currentActionToDoTransfer.deferCount;
                     putAtBottomAfterError.erase(currentTransferThread);
                     if(!currentTransferThread->setFiles(
                         curSrc,
@@ -1583,11 +1598,17 @@ void ListThread::safetyReschedule()
     // files, so a small-file backlog reads 0): that frequent re-pump is what actually recovers a
     // put-to-end deferral whose event-driven pump was missed. The re-pump is made SAFE (no
     // double-start of a live entry) by the live-transferId guard in the reset body below -- see there.
-    if(getNumberOfTranferRuning()!=0 || (actionToDoListTransferEmpty() && actionToDoListInode.empty()))
+    if(getNumberOfTranferRuning()!=0 ||
+            (actionToDoListTransferEmpty() && actionToDoListInode.empty() && actionToDoListInode_afterTheTransfer.empty()))
     {
         safetyStallTicks=0;//a transfer is running, or nothing pending (idle in tray) -> not stalled
         return;
     }
+    // NB the idle-gate above now ALSO requires actionToDoListInode_afterTheTransfer to be empty: a
+    // non-empty afterTheTransfer with the transfer+inode lists empty is NOT "idle in tray" -- it is the
+    // stranded folder-finalization state (deferred SyncDate folder-date actions that a non-normal drain
+    // path -- put-to-end give-up, skip of a not-running last entry, a backend timing variant -- never
+    // merged back). Falling through here lets the sustained-stall handler below rescue it (merge below).
     // "No transfer running yet work pending" -- but ONLY act if it PERSISTS. During normal copying
     // there are brief windows (between files, mid put-to-end defer) where this is momentarily true;
     // acting then would re-pump every tick, keep the process non-idle and never let it settle. A
@@ -1647,6 +1668,17 @@ void ListThread::safetyReschedule()
     numberOfInodeOperation=0;
     overCheckUsedThread.clear();
     putAtBottomAfterError.clear();
+    // Rescue deferred folder-date (SyncDate) actions stranded in afterTheTransfer by a drain path that
+    // skipped the normal-completion merge (put-to-end give-up, skip of a not-running last entry, or a
+    // backend timing variant that never hit transferInodeIsClosed's merge). With the transfer list empty
+    // they would otherwise never finalize and the copy never reaches Idle -- the end-of-copy HANG copying
+    // un-creatable symlinks (Windows 1314). Same merge + barrier the normal-completion path uses
+    // (transfer list empty => every child already closed), so folder dates stay correctly ordered.
+    if(actionToDoListTransferEmpty() && !actionToDoListInode_afterTheTransfer.empty())
+    {
+        actionToDoListInode.insert(actionToDoListInode.cbegin(),actionToDoListInode_afterTheTransfer.cbegin(),actionToDoListInode_afterTheTransfer.cend());
+        actionToDoListInode_afterTheTransfer.clear();
+    }
     ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Critical,"safety re-pump: sustained stall -> full scheduler reset + reschedule");
     doNewActions_inode_manipulation();
     doNewActions_start_transfer();

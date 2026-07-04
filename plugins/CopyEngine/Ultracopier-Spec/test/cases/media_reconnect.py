@@ -77,13 +77,20 @@ def _run(scenario: str, victim_name: str, tag: str) -> bool:
     dest = K.fresh_dest(f"reconnect_{tag}_dest")
     copied = os.path.join(dest, base)
     K.with_scenario(scenario)
-    r = H.run(H.ASYNC, "cp", [src], dest,
-              file_collision=H.FileCollision.OVERWRITE,
-              folder_collision=H.FolderCollision.MERGE,
-              file_error=H.FileError.PUT_TO_END,    # defer + retry until the volume returns
-              expect_dir=None,
-              fs_preload=K.fs_so())
-    K.with_scenario("")
+    # Put-to-end defers the faulted file ONE pass then escalates to Ask (one-retry-then-ask design);
+    # for a transient media drop the user retries until the volume is back, so the scripted dialog
+    # answers RETRY -> the file keeps being re-attempted and recovers once the disconnect budget is spent.
+    os.environ["ULTRACOPIER_TEST_FILE_ERROR_ACTION"] = "retry"
+    try:
+        r = H.run(H.ASYNC, "cp", [src], dest,
+                  file_collision=H.FileCollision.OVERWRITE,
+                  folder_collision=H.FolderCollision.MERGE,
+                  file_error=H.FileError.PUT_TO_END,    # defer once, then ask -> retry until the volume returns
+                  expect_dir=None,
+                  fs_preload=K.fs_so())
+    finally:
+        K.with_scenario("")
+        os.environ.pop("ULTRACOPIER_TEST_FILE_ERROR_ACTION", None)
     return _assert_recovered(r, src, copied, victim_name)
 
 

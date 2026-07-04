@@ -52,8 +52,10 @@ def run(backends=None, memcheck=H.NONE) -> bool:
     # Use winlane to run a large copy on the laptop
     from lib import winlane
 
-    # Build a source tree locally, push to laptop
-    src = H.TEST_DIR / 'winlane_stage' / 'crash_src'
+    # Build a source tree locally, push to laptop. Stage under the tmpfs temp dir
+    # (NOT inside the source tree) -- it is throwaway, regenerated every run, and must
+    # never be committed. Mirrors timing.py's tmpfs location.
+    src = pathlib.Path('/mnt/data/perso/tmpfs/ultracopier-temp') / 'crash_src'
     dest_root = 'C:\\cc-test\\win_crash_dest'
     if src.exists():
         shutil.rmtree(src)
@@ -132,7 +134,7 @@ if ($dumps) {{
     # Cleanup
     box.ps(f'if (Test-Path {remote_src}) {{ Remove-Item -Force -Recurse {remote_src} }}')
     box.ps(f'if (Test-Path {remote_dest}) {{ Remove-Item -Force -Recurse {remote_dest} }}')
-    shutil.rmtree(src.parent, ignore_errors=True)
+    shutil.rmtree(src, ignore_errors=True)  # only crash_src -- parent is the shared tmpfs temp dir
     return ok
 
 

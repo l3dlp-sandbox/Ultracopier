@@ -493,6 +493,13 @@ void Themes::actionInProgess(const Ultracopier::EngineActionInProgress &action)
         case Ultracopier::Idle:
             ui->progressBar_all->setMaximum(65535);
             ui->progressBar_all->setMinimum(0);
+            // Completion: force the TOTAL bar to a complete state too. If no general progression
+            // was ever pushed (a sub-second copy) or the last push was below max (skipped file),
+            // its value stays < maximum -- and the Fusion style keeps a QProgressStyleAnimation
+            // running for ANY visible progress bar whose value < maximum, repainting the window
+            // forever when it stays open after an error (the error tab). That endless repaint is
+            // what kept the process CPU-noisy after Idle (the put-to-end -> dialog-skip "hang").
+            ui->progressBar_all->setValue(65535);
             // Completion: the per-file bar may have been left in indeterminate "busy" mode
             // (setRange(0,0), e.g. while a flaky file's progress was unknown during a put-to-end
             // retry). An indeterminate QProgressBar self-animates, so if left set the window would

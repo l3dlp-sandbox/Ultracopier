@@ -75,6 +75,12 @@ public:
     /// pre-closed the fd, so the inode's close handshake finishes and frees the cap=1 large-transfer
     /// slot for the next large file (skip_drops_multichunk / faulty_hdd over_1mib.dat). Reset per setFiles().
     bool			finalSkipNoRetry=false;
+    /// How many times this file has already been put-to-end (copied from the ListThread entry at dispatch).
+    /// errorOnFile reads it: after >=1 deferred retry that still fails, put-to-end escalates to the Ask
+    /// dialog instead of deferring again -- one deferred pass then ask (never a 16x retry storm). Reading
+    /// it in errorOnFile (before the put-to-end machinery) keeps the dialog+skip on a CLEAN error-wait
+    /// thread, so skipping an errored symlink completes cleanly on io_uring (no put-to-end-drain overlap).
+    uint32_t		deferCount=0;
 
     //not copied size, ...
     #ifdef Q_OS_WIN32

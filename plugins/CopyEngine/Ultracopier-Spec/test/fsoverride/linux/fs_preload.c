@@ -157,10 +157,13 @@ enum uc_verb {
     UC_DTUNKNOWN,    /* readdir/readdir64 report EVERY entry's d_type as DT_UNKNOWN (models sshfs/some */
                      /* network + FUSE mounts): the scan MUST lstat-fallback to classify dirs, else a */
                      /* directory read as DT_UNKNOWN is mistaken for a file and its whole subtree dropped */
-    UC_READDIRFAIL   /* readdir/readdir64 fails NULL+EIO after <n> entries on a DIR whose opendir path */
+    UC_READDIRFAIL,  /* readdir/readdir64 fails NULL+EIO after <n> entries on a DIR whose opendir path */
                      /* matches <substr> (models a bad sector in a directory's OWN blocks): the scan */
                      /* MUST surface it, not treat the partial listing as a complete directory and */
                      /* silently drop every entry after the fault                                    */
+    UC_SYMLINKFAIL   /* symlink() to a matching DEST linkpath fails -1/EPERM (models Windows 1314    */
+                     /* ERROR_PRIVILEGE_NOT_HELD from CreateSymbolicLink without the privilege): the */
+                     /* engine must SKIP the un-creatable symlink and COMPLETE the job, never hang    */
 };
 
 struct uc_rule {
@@ -377,6 +380,9 @@ static void uc_parse(void)
             strncpy(r->arg, arg, UC_MAX_ARG - 1);
         } else if (strcmp(tok, "renamefail") == 0) {
             r->verb = UC_RENAMEFAIL;
+            strncpy(r->arg, arg, UC_MAX_ARG - 1);
+        } else if (strcmp(tok, "symlinkfail") == 0) {
+            r->verb = UC_SYMLINKFAIL;
             strncpy(r->arg, arg, UC_MAX_ARG - 1);
         } else if (strcmp(tok, "dtunknown") == 0) {
             r->verb = UC_DTUNKNOWN;   /* path-independent: arg stays "" so uc_match(UC_DTUNKNOWN,"") matches */
@@ -1457,6 +1463,14 @@ int rename(const char *oldpath, const char *newpath)
 int symlink(const char *target, const char *linkpath)
 {
     UC_REAL(symlink);
+    /* symlinkfail: permanent EPERM on a matching DEST linkpath -- the POSIX analog of Windows
+     * 1314 ERROR_PRIVILEGE_NOT_HELD (CreateSymbolicLink without SeCreateSymbolicLinkPrivilege).
+     * The engine must SKIP the un-creatable link and still COMPLETE the whole job, never hang. */
+    if (uc_match(UC_SYMLINKFAIL, linkpath) != NULL) {
+        uc_optrace("SYMLINK", linkpath, -1, EPERM);
+        errno = EPERM;
+        return -1;
+    }
     int rc = real_symlink(target, linkpath);
     uc_optrace("SYMLINK", linkpath, rc, 0);
     return rc;
