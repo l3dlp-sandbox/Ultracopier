@@ -2189,46 +2189,46 @@ Error:%2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../Themes/Oxygen/interface.cpp" line="723"/>
+        <location filename="../../Themes/Oxygen/interface.cpp" line="730"/>
         <source>Copy list</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../Themes/Oxygen/interface.cpp" line="725"/>
+        <location filename="../../Themes/Oxygen/interface.cpp" line="732"/>
         <source>Move list</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../Themes/Oxygen/interface.cpp" line="1187"/>
+        <location filename="../../Themes/Oxygen/interface.cpp" line="1194"/>
         <source>Don&apos;t close if errors are found</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../Themes/Oxygen/interface.cpp" line="1188"/>
+        <location filename="../../Themes/Oxygen/interface.cpp" line="1195"/>
         <source>Never close</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../Themes/Oxygen/interface.cpp" line="1189"/>
+        <location filename="../../Themes/Oxygen/interface.cpp" line="1196"/>
         <source>Always close</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../Themes/Oxygen/interface.cpp" line="1191"/>
+        <location filename="../../Themes/Oxygen/interface.cpp" line="1198"/>
         <source>File Name, 0KB</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../Themes/Oxygen/interface.cpp" line="1466"/>
-        <location filename="../../Themes/Oxygen/interface.cpp" line="1478"/>
-        <location filename="../../Themes/Oxygen/interface.cpp" line="1490"/>
+        <location filename="../../Themes/Oxygen/interface.cpp" line="1473"/>
+        <location filename="../../Themes/Oxygen/interface.cpp" line="1485"/>
+        <location filename="../../Themes/Oxygen/interface.cpp" line="1497"/>
         <source>Select a color</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../Themes/Oxygen/interface.cpp" line="1565"/>
-        <location filename="../../Themes/Oxygen/interface.cpp" line="1569"/>
-        <location filename="../../Themes/Oxygen/interface.cpp" line="1571"/>
+        <location filename="../../Themes/Oxygen/interface.cpp" line="1572"/>
+        <location filename="../../Themes/Oxygen/interface.cpp" line="1576"/>
+        <location filename="../../Themes/Oxygen/interface.cpp" line="1578"/>
         <source>%1 %2% of %3</source>
         <translation type="unfinished"></translation>
     </message>

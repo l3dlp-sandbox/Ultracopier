@@ -212,6 +212,14 @@ if(ULTRACOPIER_PLUGIN_KIO)
     target_link_libraries(Ultracopier PRIVATE KF${QT_VERSION_MAJOR}::KIOCore)
 endif()
 
+if(APPLE)
+    # .app icon — the qmake path sets this via ICON= in other-pro/ultracopier-core.pro
+    set(MACOSX_BUNDLE_ICON_FILE ultracopier.icns)
+    set(_ucx_icns ${CMAKE_CURRENT_SOURCE_DIR}/resources/ultracopier.icns)
+    set_source_files_properties(${_ucx_icns} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+    target_sources(Ultracopier PRIVATE ${_ucx_icns})
+endif()
+
 set_target_properties(Ultracopier PROPERTIES
     MACOSX_BUNDLE_GUI_IDENTIFIER ultracopier.herman-brule.com
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
@@ -226,7 +234,9 @@ install(TARGETS Ultracopier
 
 if(QT_VERSION_MAJOR EQUAL 6)
     # Silence QTP0002 dev warning on Qt 6.5+ Android builds (target-property paths as JSON).
-    if(COMMAND qt_policy)
+    # QT_KNOWN_POLICY_* guards against Qt < 6.6, where QTP0002 doesn't exist and
+    # qt_policy(SET ...) hard-errors (e.g. the Qt 6.5.3 osxcross mac build).
+    if(COMMAND qt_policy AND QT_KNOWN_POLICY_QTP0002)
         qt_policy(SET QTP0002 NEW)
     endif()
     qt_finalize_executable(Ultracopier)

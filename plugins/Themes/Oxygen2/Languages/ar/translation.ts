@@ -67,46 +67,46 @@
         <translation>الملف %1/%2 ، الحجم: %3/%4</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="854"/>
+        <location filename="../../interface.cpp" line="861"/>
         <source>Copy list</source>
         <translation>قائمة النسخ</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="856"/>
+        <location filename="../../interface.cpp" line="863"/>
         <source>Move list</source>
         <translation>قائمة التحريك</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1373"/>
+        <location filename="../../interface.cpp" line="1380"/>
         <source>Don&apos;t close if errors are found</source>
         <translation>لا تغلق إذا تم العثور على أخطاء</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1374"/>
+        <location filename="../../interface.cpp" line="1381"/>
         <source>Never close</source>
         <translation>لا تغلق</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1375"/>
+        <location filename="../../interface.cpp" line="1382"/>
         <source>Always close</source>
         <translation>إغلاق دائما</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1377"/>
+        <location filename="../../interface.cpp" line="1384"/>
         <source>File Name, 0KB</source>
         <translation>اسم الملف ، 0KB</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1588"/>
-        <location filename="../../interface.cpp" line="1600"/>
-        <location filename="../../interface.cpp" line="1612"/>
+        <location filename="../../interface.cpp" line="1595"/>
+        <location filename="../../interface.cpp" line="1607"/>
+        <location filename="../../interface.cpp" line="1619"/>
         <source>Select a color</source>
         <translation>تحديد لون</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1700"/>
-        <location filename="../../interface.cpp" line="1711"/>
-        <location filename="../../interface.cpp" line="1720"/>
+        <location filename="../../interface.cpp" line="1707"/>
+        <location filename="../../interface.cpp" line="1718"/>
+        <location filename="../../interface.cpp" line="1727"/>
         <source>%1 %2% of %3 into %4 files</source>
         <translation>%1 %2% من %3 إلى ملفات %4</translation>
     </message>

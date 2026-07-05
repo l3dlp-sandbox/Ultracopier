@@ -57,7 +57,7 @@
         <translation type="unfinished">%1/%2 파일, 크기: %3/%4</translation>
     </message>
     <message>
-        <location line="+300"/>
+        <location line="+307"/>
         <source>Copy list</source>
         <translation type="unfinished">복사 목록</translation>
     </message>

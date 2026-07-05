@@ -25,7 +25,7 @@
         <translation>Fichier %1/%2, taille: %3/%4</translation>
     </message>
     <message>
-        <location line="+253"/>
+        <location line="+260"/>
         <source>Copy list</source>
         <translation>Liste de copies</translation>
     </message>
