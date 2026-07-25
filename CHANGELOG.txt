@@ -63,3 +63,5 @@
 3.0.2.2: add FAQ, fix for Linux, add good support for Linux Gentoo and dolphin
 3.0.2.3: try improve UAC under Windows
 3.0.2.4: fix io_uring for Linux
+3.1.0.0: first version with default IOCP/io_uring
+3.1.0.1: remake macoxs build env
