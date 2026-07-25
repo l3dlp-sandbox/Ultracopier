@@ -165,7 +165,15 @@ def binary_for(backend: str, cfg: configparser.ConfigParser, asan=False, tsan=Fa
     # compiles it (overrideFactory stays nullptr, the real GUI dialog runs). Replaces the old in-engine
     # env hook. See test/cases/file_error_dialog.py.
     hook = pathlib.Path(__file__).resolve().parents[1] / "hooks" / "FileErrorDialogHook.cpp"
-    flags = ["CONFIG+=release", "CONFIG+=nodebug", f"SOURCES+={hook}"]
+    # CollisionDialogHook.cpp does the same for the four dialogs that can otherwise BLOCK a headless
+    # run with no way to answer them: FileExistsDialog, FolderExistsDialog, FileIsSameDialog and
+    # DiskSpace. fileCollision=0 / folderCollision=0 ("Ask") and checkDiskSpace=true are SHIPPING
+    # DEFAULTS, so without this a case hitting a real collision just hung -- which is why the default
+    # policy had no coverage at all. Compiled into EVERY test build (never the shipping binary), so
+    # no case can wedge on an Ask: every dialog is caught and answered (env-scripted, Skip/Merge by
+    # default). See test/cases/collision_ask.py.
+    chook = pathlib.Path(__file__).resolve().parents[1] / "hooks" / "CollisionDialogHook.cpp"
+    flags = ["CONFIG+=release", "CONFIG+=nodebug", f"SOURCES+={hook}", f"SOURCES+={chook}"]
     # Append any UC_EXTRA_HOOKS computed above (each test-only hook installs itself at static-init
     # via a Qt startup routine or an override-factory). The shipping binary never compiles them.
     for h in extra_hooks:
@@ -190,10 +198,19 @@ def binary_for(backend: str, cfg: configparser.ConfigParser, asan=False, tsan=Fa
     # make: it is incremental -- a near-instant no-op when nothing changed, and it rebuilds when an
     # engine source is edited. The previous "return the binary if it already exists" CACHED a stale
     # binary and silently tested OLD code after every source change -- a regression-hiding trap.
-    if not (bdir / "Makefile").exists():
+    # ...and ALSO re-run qmake when the FLAGS THEMSELVES changed since this build dir was generated.
+    # "Makefile missing" alone is not enough: adding a source/define to the default flag list leaves
+    # the existing Makefile in place, so the new file silently never compiles and the tests quietly
+    # exercise a binary without it. That is exactly how CollisionDialogHook.cpp came out missing (and,
+    # per the note above, the earlier window_close hook bug). A flags stamp makes it self-correcting.
+    flags_stamp = bdir / ".uc-qmake-flags"
+    want_flags = "\n".join(flags)
+    stale_flags = (not flags_stamp.exists()) or flags_stamp.read_text() != want_flags
+    if not (bdir / "Makefile").exists() or stale_flags:
         subprocess.run(["qmake6", "-o", "Makefile", str(SOURCES / "ultracopier.pro"),
                         "-spec", "linux-g++"] + flags, cwd=bdir, env=env, check=True,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        flags_stamp.write_text(want_flags)
     subprocess.run(["make", f"-j{os.cpu_count()}"], cwd=bdir, env=env, check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return str(binpath)

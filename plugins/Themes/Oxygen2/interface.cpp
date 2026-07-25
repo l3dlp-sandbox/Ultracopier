@@ -888,10 +888,13 @@ void Themes::isInPause(const bool &isInPause)
 /// \brief set have pause
 void Themes::havePause(const bool &havePause)
 {
+    // HIDE it, do not just grey it out: when the copy engine cannot pause at all (e.g. the Windows
+    // native_copy path, which is one uninterruptible OS call), a dead disabled button just looks
+    // broken. Stop/cancel stays visible and working. Both UI variants get the same treatment.
     if(darkUi)
-        pauseButton->setEnabled(havePause);
+        pauseButton->setVisible(havePause);
     else
-        ui->pauseButton->setEnabled(havePause);
+        ui->pauseButton->setVisible(havePause);
     m_havePause=havePause;
 }
 

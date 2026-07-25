@@ -1,4 +1,15 @@
 #include "FolderExistsDialog.h"
+
+// nullptr in the shipping binary -> the real GUI dialog; only a test build overrides it.
+FolderExistsDialog *(*FolderExistsDialog::overrideFactory)(QWidget *,INTERNALTYPEPATH,bool,INTERNALTYPEPATH,std::string,std::string)=NULL;
+
+FolderExistsDialog *FolderExistsDialog::createInstance(QWidget *parent,INTERNALTYPEPATH source,bool isSame,INTERNALTYPEPATH destination,std::string firstRenamingRule,std::string otherRenamingRule)
+{
+    if(overrideFactory!=NULL)
+        return overrideFactory(parent,source,isSame,destination,firstRenamingRule,otherRenamingRule);
+    else
+        return new FolderExistsDialog(parent,source,isSame,destination,firstRenamingRule,otherRenamingRule);
+}
 #include "ui_folderExistsDialog.h"
 #include "TransferThread.h"
 #include "../../../cpp11addition.h"

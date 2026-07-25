@@ -1284,6 +1284,19 @@ bool TransferThread::writeDestinationFilePermissions(const INTERNALTYPEPATH &des
         return false;
     return true;
     #else
+    // PERF NOTE (measured 2026-07-25, Win10 laptop, 52209-file corpus): this per-file reopen+set is
+    // the whole cost of the ACL pass -- 11.4s of a 19.4s copy (~219 us/file), and it is what makes
+    // Ultracopier 2.26x robocopy /COPY:DATS there (with neither tool copying security it is 1.14x).
+    // Two narrowings of the requested rights were TRIED AND MEASURED, both rejected, do not redo them:
+    //   * WRITE_DAC alone -> BREAKS IT: the destination ends up with inherited ACEs only and the
+    //     source's explicit ACEs (a deny ACE in the round-trip test) silently vanish. READ_CONTROL
+    //     is required even though we only write.
+    //   * READ_CONTROL|WRITE_DAC (dropping WRITE_OWNER + ACCESS_SYSTEM_SECURITY) -> DACL round-trip
+    //     stays byte-identical, but there is NO speed-up (11.31s vs 11.42s). The cost is inside
+    //     SetSecurityInfo() itself (ACL canonicalisation / SID work via ntmarta), not in the open's
+    //     access mask, so the rights were left as they were.
+    // A real win therefore has to avoid the reopen entirely (apply the DACL to the destination handle
+    // the pipelined backend already holds) or skip the set when the inherited ACL already matches.
     HANDLE hFile = CreateFileW(TransferThread::toFinalPath(destination).c_str(),READ_CONTROL | WRITE_OWNER | WRITE_DAC | ACCESS_SYSTEM_SECURITY,0, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
     if (hFile == INVALID_HANDLE_VALUE) {
       ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+"] CreateFile() failed. Error: INVALID_HANDLE_VALUE: "+TransferThread::GetLastErrorStdStr()+" on "+TransferThread::internalStringTostring(destination));

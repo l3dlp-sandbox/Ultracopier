@@ -31,11 +31,16 @@ public:
     explicit FolderExistsDialog(QWidget *parent,INTERNALTYPEPATH source,bool isSame,INTERNALTYPEPATH destination,std::string firstRenamingRule,std::string otherRenamingRule);
     ~FolderExistsDialog();
     /// \brief return the the always checkbox is checked
-    bool getAlways();
+    virtual bool getAlways();
     /// \brief return the action clicked
-    FolderExistsAction getAction();
+    /// the clean seam for testing the collision dialog -- NO #ifdef / env / test logic in the engine.
+    virtual FolderExistsAction getAction();
     /// \brief return the new rename is case in manual renaming
-    std::string getNewName();
+    virtual std::string getNewName();
+    /// \brief create a FolderExistsDialog. The engine creates EVERY folder-collision dialog through this
+    /// so a test can substitute a subclass; nullptr in production -> the real GUI dialog.
+    static FolderExistsDialog *createInstance(QWidget *parent,INTERNALTYPEPATH source,bool isSame,INTERNALTYPEPATH destination,std::string firstRenamingRule,std::string otherRenamingRule);
+    static FolderExistsDialog *(*overrideFactory)(QWidget *,INTERNALTYPEPATH,bool,INTERNALTYPEPATH,std::string,std::string);
 protected:
     void changeEvent(QEvent *e);
 private slots:

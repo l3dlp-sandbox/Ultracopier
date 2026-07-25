@@ -1,4 +1,16 @@
 #include "FileExistsDialog.h"
+
+// nullptr in the shipping binary: createInstance() then just news a real FileExistsDialog and the GUI
+// is shown exactly as before. A test build sets this (static initializer) to return a headless subclass.
+FileExistsDialog *(*FileExistsDialog::overrideFactory)(QWidget *, INTERNALTYPEPATH, INTERNALTYPEPATH, std::string, std::string, FacilityInterface *)=NULL;
+
+FileExistsDialog *FileExistsDialog::createInstance(QWidget *parent, INTERNALTYPEPATH source, INTERNALTYPEPATH destination, std::string firstRenamingRule, std::string otherRenamingRule, FacilityInterface *facilityEngine)
+{
+    if(overrideFactory!=NULL)
+        return overrideFactory(parent,source,destination,firstRenamingRule,otherRenamingRule,facilityEngine);
+    else
+        return new FileExistsDialog(parent,source,destination,firstRenamingRule,otherRenamingRule,facilityEngine);
+}
 #include "ui_fileExistsDialog.h"
 #include "TransferThread.h"
 #include "../../../cpp11addition.h"

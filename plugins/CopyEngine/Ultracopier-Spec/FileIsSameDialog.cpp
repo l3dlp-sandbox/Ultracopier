@@ -1,4 +1,15 @@
 #include "FileIsSameDialog.h"
+
+// nullptr in the shipping binary -> the real GUI dialog; only a test build overrides it.
+FileIsSameDialog *(*FileIsSameDialog::overrideFactory)(QWidget *, INTERNALTYPEPATH, std::string, std::string, FacilityInterface *)=NULL;
+
+FileIsSameDialog *FileIsSameDialog::createInstance(QWidget *parent, INTERNALTYPEPATH fileInfo, std::string firstRenamingRule, std::string otherRenamingRule, FacilityInterface *facilityEngine)
+{
+    if(overrideFactory!=NULL)
+        return overrideFactory(parent,fileInfo,firstRenamingRule,otherRenamingRule,facilityEngine);
+    else
+        return new FileIsSameDialog(parent,fileInfo,firstRenamingRule,otherRenamingRule,facilityEngine);
+}
 #include "ui_fileIsSameDialog.h"
 #include "TransferThread.h"
 #include "../../../cpp11addition.h"

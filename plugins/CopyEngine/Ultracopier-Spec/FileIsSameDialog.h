@@ -33,11 +33,16 @@ public:
     explicit FileIsSameDialog(QWidget *parent, INTERNALTYPEPATH fileInfo, std::string firstRenamingRule, std::string otherRenamingRule, FacilityInterface *facilityEngine);
     ~FileIsSameDialog();
     /// \brief return the the always checkbox is checked
-    bool getAlways();
+    virtual bool getAlways();
     /// \brief return the action clicked
-    FileExistsAction getAction();
+    /// the clean seam for testing the same-file dialog -- NO #ifdef / env / test logic in the engine.
+    virtual FileExistsAction getAction();
     /// \brief return the new rename is case in manual renaming
-    std::string getNewName();
+    virtual std::string getNewName();
+    /// \brief create a FileIsSameDialog. The engine creates EVERY same-file dialog through this so a
+    /// test can substitute a subclass; nullptr in production -> the real GUI dialog.
+    static FileIsSameDialog *createInstance(QWidget *parent, INTERNALTYPEPATH fileInfo, std::string firstRenamingRule, std::string otherRenamingRule, FacilityInterface *facilityEngine);
+    static FileIsSameDialog *(*overrideFactory)(QWidget *, INTERNALTYPEPATH, std::string, std::string, FacilityInterface *);
 protected:
     void changeEvent(QEvent *e);
 private slots:

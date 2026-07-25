@@ -1,4 +1,15 @@
 #include "DiskSpace.h"
+
+// nullptr in the shipping binary -> the real GUI dialog; only a test build overrides it.
+DiskSpace *(*DiskSpace::overrideFactory)(FacilityInterface *,std::vector<Diskspace>,QWidget *)=NULL;
+
+DiskSpace *DiskSpace::createInstance(FacilityInterface *facilityEngine,std::vector<Diskspace> list,QWidget *parent)
+{
+    if(overrideFactory!=NULL)
+        return overrideFactory(facilityEngine,list,parent);
+    else
+        return new DiskSpace(facilityEngine,list,parent);
+}
 #include "ui_DiskSpace.h"
 #include "StructEnumDefinition_CopyEngine.h"
 

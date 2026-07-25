@@ -33,11 +33,18 @@ public:
     explicit FileExistsDialog(QWidget *parent, INTERNALTYPEPATH source, INTERNALTYPEPATH destination, std::string firstRenamingRule, std::string otherRenamingRule, FacilityInterface *facilityEngine);
     ~FileExistsDialog();
     /// \brief return the the always checkbox is checked
-    bool getAlways();
+    virtual bool getAlways();
     /// \brief return the action clicked
-    FileExistsAction getAction();
+    /// the clean seam for testing the collision dialog -- NO #ifdef / env / test logic lives in the engine.
+    virtual FileExistsAction getAction();
     /// \brief return the new rename is case in manual renaming
-    std::string getNewName();
+    virtual std::string getNewName();
+    /// \brief create a FileExistsDialog. The engine creates EVERY file-collision dialog through this so a
+    /// test can substitute a subclass. overrideFactory is nullptr in production (-> a normal dialog); only
+    /// a test build's static initializer sets it. (Plain function pointer + .cpp definition keeps this
+    /// C++11/mingw-4.9.2 safe -- no C++17 inline static.)
+    static FileExistsDialog *createInstance(QWidget *parent, INTERNALTYPEPATH source, INTERNALTYPEPATH destination, std::string firstRenamingRule, std::string otherRenamingRule, FacilityInterface *facilityEngine);
+    static FileExistsDialog *(*overrideFactory)(QWidget *, INTERNALTYPEPATH, INTERNALTYPEPATH, std::string, std::string, FacilityInterface *);
 protected:
     void changeEvent(QEvent *e);
 private slots:

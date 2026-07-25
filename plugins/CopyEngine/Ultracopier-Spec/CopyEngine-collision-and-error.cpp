@@ -74,10 +74,13 @@ void CopyEngine::fileAlreadyExists(INTERNALTYPEPATH source,INTERNALTYPEPATH dest
                 }
                 dialogIsOpen=true;
                 ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"show dialog");
-                FileIsSameDialog dialog(uiinterface,source,firstRenamingRule,otherRenamingRule,facilityEngine);
+                FileIsSameDialog *dialog=FileIsSameDialog::createInstance(uiinterface,source,firstRenamingRule,otherRenamingRule,facilityEngine);
                 emit isInPause(true);
-                dialog.exec();/// \bug crash when external close
-                FileExistsAction newAction=dialog.getAction();
+                dialog->exec();/// \bug crash when external close
+                const FileExistsAction newAction=dialog->getAction();
+                const bool dialogAlways=dialog->getAlways();
+                const std::string dialogNewName=dialog->getNewName();
+                delete dialog;// destroyed before any early return below -> no leak on the Cancel path
                 emit isInPause(false);
                 ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"close dialog: "+std::to_string(newAction));
                 if(newAction==FileExists_Cancel)
@@ -85,7 +88,7 @@ void CopyEngine::fileAlreadyExists(INTERNALTYPEPATH source,INTERNALTYPEPATH dest
                     emit cancelAll();
                     return;
                 }
-                if(dialog.getAlways() && newAction!=alwaysDoThisActionForFileExists)
+                if(dialogAlways && newAction!=alwaysDoThisActionForFileExists)
                 {
                     alwaysDoThisActionForFileExists=newAction;
                     listThread->setAlwaysFileExistsAction(alwaysDoThisActionForFileExists);
@@ -101,10 +104,10 @@ void CopyEngine::fileAlreadyExists(INTERNALTYPEPATH source,INTERNALTYPEPATH dest
                             break;
                         }
                 }
-                if(dialog.getAlways() || newAction!=FileExists_Rename)
+                if(dialogAlways || newAction!=FileExists_Rename)
                     thread->setFileExistsAction(newAction);
                 else
-                    thread->setFileRename(dialog.getNewName());
+                    thread->setFileRename(dialogNewName);
                 dialogIsOpen=false;
                 ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"emit queryOneNewDialog()");
                 //always call to check if pending dialog
@@ -149,10 +152,13 @@ void CopyEngine::fileAlreadyExists(INTERNALTYPEPATH source,INTERNALTYPEPATH dest
                 }
                 dialogIsOpen=true;
                 ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"show dialog");
-                FileExistsDialog dialog(uiinterface,source,destination,firstRenamingRule,otherRenamingRule,facilityEngine);
+                FileExistsDialog *dialog=FileExistsDialog::createInstance(uiinterface,source,destination,firstRenamingRule,otherRenamingRule,facilityEngine);
                 emit isInPause(true);
-                dialog.exec();/// \bug crash when external close
-                FileExistsAction newAction=dialog.getAction();
+                dialog->exec();/// \bug crash when external close
+                const FileExistsAction newAction=dialog->getAction();
+                const bool dialogAlways=dialog->getAlways();
+                const std::string dialogNewName=dialog->getNewName();
+                delete dialog;// destroyed before any early return below -> no leak on the Cancel path
                 emit isInPause(false);
                 ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"close dialog: "+std::to_string(newAction));
                 if(newAction==FileExists_Cancel)
@@ -162,7 +168,7 @@ void CopyEngine::fileAlreadyExists(INTERNALTYPEPATH source,INTERNALTYPEPATH dest
                     return;
                 }
                 ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"close dialog: newAction!=FileExists_Cancel");
-                if(dialog.getAlways() && newAction!=alwaysDoThisActionForFileExists)
+                if(dialogAlways && newAction!=alwaysDoThisActionForFileExists)
                 {
                     ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"close dialog: always");
                     alwaysDoThisActionForFileExists=newAction;
@@ -198,10 +204,10 @@ void CopyEngine::fileAlreadyExists(INTERNALTYPEPATH source,INTERNALTYPEPATH dest
                         }
                 }
                 ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"close dialog: post always");
-                if(dialog.getAlways() || newAction!=FileExists_Rename)
+                if(dialogAlways || newAction!=FileExists_Rename)
                     thread->setFileExistsAction(newAction);
                 else
-                    thread->setFileRename(dialog.getNewName());
+                    thread->setFileRename(dialogNewName);
                 ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"close dialog: post set thread");
                 dialogIsOpen=false;
                 ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"emit queryOneNewDialog()");
@@ -238,10 +244,11 @@ void CopyEngine::haveNeedPutAtBottom(bool needPutAtBottom, const INTERNALTYPEPAT
 void CopyEngine::missingDiskSpace(std::vector<Diskspace> list)
 {
     ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"show dialog");
-    DiskSpace dialog(facilityEngine,list,uiinterface);
+    DiskSpace *dialog=DiskSpace::createInstance(facilityEngine,list,uiinterface);
     emit isInPause(true);
-    dialog.exec();/// \bug crash when external close
-    bool ok=dialog.getAction();
+    dialog->exec();/// \bug crash when external close
+    const bool ok=dialog->getAction();
+    delete dialog;
     emit isInPause(false);
     ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"cancel: "+std::to_string(ok));
     if(!ok)
@@ -449,19 +456,22 @@ void CopyEngine::folderAlreadyExists(INTERNALTYPEPATH source, INTERNALTYPEPATH d
             }
             dialogIsOpen=true;
             ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"show dialog");
-            FolderExistsDialog dialog(uiinterface,source,isSame,destination,firstRenamingRule,otherRenamingRule);
-            dialog.exec();/// \bug crash when external close
-            FolderExistsAction newAction=dialog.getAction();
+            FolderExistsDialog *dialog=FolderExistsDialog::createInstance(uiinterface,source,isSame,destination,firstRenamingRule,otherRenamingRule);
+            dialog->exec();/// \bug crash when external close
+            const FolderExistsAction newAction=dialog->getAction();
+            const bool dialogAlways=dialog->getAlways();
+            const std::string dialogNewName=dialog->getNewName();
+            delete dialog;// destroyed before any early return below -> no leak on the Cancel path
             ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"close dialog: "+std::to_string(newAction));
             if(newAction==FolderExists_Cancel)
             {
                 emit cancelAll();
                 return;
             }
-            if(dialog.getAlways() && newAction!=alwaysDoThisActionForFolderExists)
+            if(dialogAlways && newAction!=alwaysDoThisActionForFolderExists)
                 setComboBoxFolderCollision(newAction);
-            if(!dialog.getAlways() && newAction==FolderExists_Rename)
-                thread->setFolderExistsAction(newAction,dialog.getNewName());
+            if(!dialogAlways && newAction==FolderExists_Rename)
+                thread->setFolderExistsAction(newAction,dialogNewName);
             else
                 thread->setFolderExistsAction(newAction);
             dialogIsOpen=false;

@@ -326,11 +326,32 @@ bool TransferThreadPipelined::tryNativeCopy()
         (LPPROGRESS_ROUTINE)pipelinedProgressRoutine,this,&stopItWin,COPY_FILE_ALLOW_DECRYPTED_DESTINATION | 0x00000800);//0x00000800 is COPY_FILE_COPY_SYMLINK
     if(successFull==FALSE)
     {
+        const DWORD nativeErr=GetLastError();
         const std::string &strError=TransferThread::GetLastErrorStdStr();
-        ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+"] native copy stop in error: "+strError);
-        readError=true;
-        writeError=true;
-        emit errorOnFile(destination,strError);
+        if(stopIt || needSkip || nativeErr==ERROR_REQUEST_ABORTED)
+        {
+            // the user cancelled through pbCancel -> honour the stop, do NOT retry another way
+            ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"["+std::to_string(id)+"] native copy cancelled");
+            if(!source.empty() && destinationIsOursToRemove() && source!=destination)
+                if(!unlink(destination))
+                    ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+"] unable to remove the cancelled native-copy destination");
+            resetExtraVariable();
+            return true;
+        }
+        // A REAL failure (unreadable sector, dest full, permissions...). Do NOT give up here: the
+        // native path is all-or-nothing, so it cannot salvage the readable PREFIX of a dying file,
+        // cannot resume at an offset after a media reconnect and cannot checksum per chunk. Drop the
+        // partial destination and return false so the caller runs this ONE file through the normal
+        // pipeline, which does all of that and applies the file-error policy properly. Falling back
+        // costs one wasted attempt on a file that was going to fail anyway.
+        ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+"] native copy failed ("+strError+
+                                 ") -> falling back to the pipeline for this file");
+        if(!source.empty() && destinationIsOursToRemove() && source!=destination)
+            if(!unlink(destination))
+                ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+"] unable to remove the failed native-copy destination");
+        readError=false;
+        writeError=false;
+        return false;
     }
     #elif defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID) && !defined(__ANDROID__)
     ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,internalStringTostring(source)+" to "+internalStringTostring(destination)+": native_copy enabled (copy_file_range)");
@@ -388,7 +409,10 @@ bool TransferThreadPipelined::tryNativeCopy()
                 // dest). Mirrors the skip-path guard. (NB: the native O_TRUNC above already destroyed a
                 // pre-existing dest -- the truncate-skip for the native path is separate follow-up work.)
                 if(stopIt && needRemove && destinationIsOursToRemove())
-                    unlink(destination);
+                    if(!unlink(destination))
+                        ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+
+                                                 "] unable to remove the partial destination: "+
+                                                 TransferThread::internalStringTostring(destination));
                 resetExtraVariable();
                 return true;
             }
@@ -404,7 +428,10 @@ bool TransferThreadPipelined::tryNativeCopy()
                 //EXDEV/ENOSYS/EINVAL: cross-device or unsupported -> fall back to the pipeline
                 if(terr==EXDEV || terr==ENOSYS || terr==EINVAL)
                 {
-                    unlink(destination);
+                    if(!unlink(destination))
+                        ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+
+                                                 "] unable to remove the partial destination: "+
+                                                 TransferThread::internalStringTostring(destination));
                     return false;
                 }
                 readError=false;
@@ -451,7 +478,10 @@ bool TransferThreadPipelined::tryNativeCopy()
         {
             if(!source.empty() && destinationIsOursToRemove())   // #9: keep a user's pre-existing dest on cancel
                 if(exists(source) && source!=destination)
-                    unlink(destination);
+                    if(!unlink(destination))
+                        ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+
+                                                 "] unable to remove the partial destination: "+
+                                                 TransferThread::internalStringTostring(destination));
             resetExtraVariable();
         }
         // error already emitted above
@@ -604,7 +634,10 @@ void TransferThreadPipelined::ifCanStartTransfer()
             // Cleanup on stop
             if(!source.empty() && needRemove && destinationIsOursToRemove())   // #9: keep a user's pre-existing dest on cancel
                 if(exists(source) && source!=destination)
-                    unlink(destination);
+                    if(!unlink(destination))
+                        ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+
+                                                 "] unable to remove the partial destination: "+
+                                                 TransferThread::internalStringTostring(destination));
             return;
         }
         // Error case: error already emitted
@@ -622,7 +655,10 @@ void TransferThreadPipelined::ifCanStartTransfer()
         {
             if(!source.empty() && destinationIsOursToRemove())   // #9: keep a user's pre-existing dest on cancel
                 if(exists(source) && source!=destination)
-                    unlink(destination);
+                    if(!unlink(destination))
+                        ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+
+                                                 "] unable to remove the partial destination: "+
+                                                 TransferThread::internalStringTostring(destination));
             resetExtraVariable();
             return;
         }
@@ -796,7 +832,10 @@ void TransferThreadPipelined::checkIfAllIsClosedAndDoOperations()
     // must NOT be deleted -- cp/rsync leave it untouched. (iouring_source_vanish)
     if(!source.empty() && needRemove && (stopIt || needSkip) && destinationIsOursToRemove())
         if(is_file(source) && source!=destination)
-            unlink(destination);
+            if(!unlink(destination))
+                ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+
+                                         "] unable to remove the partial destination: "+
+                                         TransferThread::internalStringTostring(destination));
 
     transfer_stat=TransferStat_Idle;
     transferSize=transferProgression;
@@ -818,7 +857,18 @@ void TransferThreadPipelined::checkIfAllIsClosedAndDoOperations()
             // complete copy (gated by destinationIsOursToRemove() -- never delete a user's pre-existing
             // dest; a MOVE keeps the source via the copyFailed gate below). Mirrors TransferThreadAsync.
             if(!source.empty() && destinationIsOursToRemove() && source!=destination)
-                unlink(destination);
+                if(!unlink(destination))
+                {
+                    // CANNOT be swallowed: the destination is FULL SIZE but holds WRONG bytes. If it
+                    // survives, a later run under a size-based collision policy ("overwrite if not
+                    // same size", idx 7, or idx 3) sees a same-size file and SKIPS it as complete --
+                    // silent corruption. Surface it so the file goes through the error policy instead
+                    // of being counted as done.
+                    ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+
+                                             "] unable to remove the checksum-corrupt destination: "+
+                                             TransferThread::internalStringTostring(destination));
+                    emit errorOnFile(destination,tr("Checksum mismatch and the corrupt destination could not be removed").toStdString());
+                }
             transfer_stat=TransferStat_PostTransfer;
             return;
         }
@@ -950,7 +1000,10 @@ void TransferThreadPipelined::skip()
         // (ifCanStartTransfer, "stopIt" branch) repeats this exact guard after it closes the handle.
         if(!source.empty() && needRemove && destinationIsOursToRemove())
             if(exists(source) && source!=destination)
-                unlink(destination);
+                if(!unlink(destination))
+                    ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+
+                                             "] unable to remove the partial destination: "+
+                                             TransferThread::internalStringTostring(destination));
         break;
     case TransferStat_PostTransfer:
         if(needSkip)
