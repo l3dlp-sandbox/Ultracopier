@@ -114,7 +114,7 @@ void ListThread::moveItemsDown(std::vector<uint64_t> ids)
     compactActionToDoListTransfer();//flush tombstones: position-based MoveItem must match the dense model
     int lastGoodPositionReal=0;
     bool haveGoodPosition=false;
-    for (int i=actionToDoListTransfer.size()-1; i>=0; --i) {
+    for (int i=(int)actionToDoListTransfer.size()-1; i>=0; --i) {
         if(vectorcontainsAtLeastOne(ids,actionToDoListTransfer.at(i)->id))
         {
             if(haveGoodPosition)
@@ -162,7 +162,7 @@ void ListThread::moveItemsOnBottom(std::vector<uint64_t> ids)
     ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"start");
     //do list operation
     compactActionToDoListTransfer();//flush tombstones: position-based MoveItem must match the dense model
-    int lastGoodPositionReal=actionToDoListTransfer.size()-1;
+    int lastGoodPositionReal=(int)actionToDoListTransfer.size()-1;
     for (int i=lastGoodPositionReal; i>=0; --i) {
         ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"Check action on item "+std::to_string(i));
         if(vectorcontainsAtLeastOne(ids,actionToDoListTransfer.at(i)->id))
@@ -216,7 +216,7 @@ void ListThread::exportTransferListInternal(const std::string &fileName)
         transferFile.write(QStringLiteral("Ultracopier\n").toUtf8());
         compactActionToDoListTransfer();//don't export tombstoned (removed) entries
         bool haveError=false;
-        int size=actionToDoListTransfer.size();
+        int size=(int)actionToDoListTransfer.size();
         for (int index=0;index<size;++index) {
             if(actionToDoListTransfer.at(index)->mode==Ultracopier::Copy)
             {
@@ -404,7 +404,7 @@ void ListThread::exportErrorIntoTransferList(const std::string &fileName)
         }
         transferFile.write(QStringLiteral("Ultracopier\n").toUtf8());
         bool haveError=false;
-        int size=errorLog.size();
+        int size=(int)errorLog.size();
         for (int index=0;index<size;++index) {
             if(forcedMode)
                 transferFile.write((errorLog.at(index).source+";"+errorLog.at(index).destination+"\n").c_str());

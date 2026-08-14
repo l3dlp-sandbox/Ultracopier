@@ -540,7 +540,7 @@ void ReadThread::internalRead()
                                     &lpNumberOfBytesRead,NULL);
         sizeReaden=lpNumberOfBytesRead;
         #else
-        sizeReaden=::read(from,data,blockSize);
+        sizeReaden=(int)::read(from,data,blockSize);//bounded by blockSize
         #endif
         #ifdef ULTRACOPIER_PLUGIN_DEBUG
         status=Idle;

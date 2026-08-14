@@ -16,7 +16,9 @@ static const std::regex isadouble("^-?[0-9]+(\\.[0-9]+)?$",std::regex::optimize)
 uint8_t stringtouint8(const std::string &string,bool *ok)
 {
     #ifdef __EXCEPTIONS
-    unsigned int tempValue;
+    //std::stoul returns unsigned long: holding it in a narrower type truncated the value
+    //before the range test below, so e.g. "4294967296" came back as 0 with ok=true
+    unsigned long tempValue;
     try {
       tempValue = std::stoul(string);
     }
@@ -32,7 +34,7 @@ uint8_t stringtouint8(const std::string &string,bool *ok)
     {
         if(Q_LIKELY(ok!=NULL))
             *ok=true;
-        return tempValue;
+        return (uint8_t)tempValue;//range checked by the if
     }
     else
     {
@@ -76,7 +78,9 @@ uint8_t stringtouint8(const std::string &string,bool *ok)
 uint16_t stringtouint16(const std::string &string,bool *ok)
 {
     #ifdef __EXCEPTIONS
-    unsigned int tempValue;
+    //std::stoul returns unsigned long: holding it in a narrower type truncated the value
+    //before the range test below, so e.g. "4294967296" came back as 0 with ok=true
+    unsigned long tempValue;
     try {
       tempValue = std::stoul(string);
     }
@@ -92,7 +96,7 @@ uint16_t stringtouint16(const std::string &string,bool *ok)
     {
         if(Q_LIKELY(ok!=NULL))
             *ok=true;
-        return tempValue;
+        return (uint16_t)tempValue;//range checked by the if
     }
     else
     {
@@ -136,7 +140,9 @@ uint16_t stringtouint16(const std::string &string,bool *ok)
 uint32_t stringtouint32(const std::string &string,bool *ok)
 {
     #ifdef __EXCEPTIONS
-    uint32_t tempValue;
+    //unsigned long, and the range test the #else branch below already had: without it
+    //std::stoul("4294967296") silently truncated to 0 and reported ok=true
+    unsigned long tempValue;
     try {
       tempValue = std::stoul(string);
     }
@@ -148,9 +154,18 @@ uint32_t stringtouint32(const std::string &string,bool *ok)
             *ok=false;
         return 0;
     }
+    if(Q_UNLIKELY(tempValue>0xFFFFFFFF))
+    {
+        #ifdef CATCHCHALLENGER_EXTRA_CHECK
+        std::cerr << "Convertion failed and repported at " << __FILE__ << ":" << __LINE__ << std::endl;
+        #endif
+        if(Q_LIKELY(ok!=NULL))
+            *ok=false;
+        return 0;
+    }
     if(Q_LIKELY(ok!=NULL))
         *ok=true;
-    return tempValue;
+    return (uint32_t)tempValue;
     #else
     if(Q_LIKELY(std::regex_match(string,isaunsignednumber)))
     {
@@ -255,7 +270,9 @@ uint64_t stringtouint64(const std::string &string,bool *ok)
 int8_t stringtoint8(const std::string &string,bool *ok)
 {
     #ifdef __EXCEPTIONS
-    int tempValue;
+    //std::stol returns long: see the note in stringtouint8() — truncating here would let an
+    //out-of-range string through the test below
+    long tempValue;
     try {
       tempValue = std::stol(string);
     }
@@ -271,7 +288,7 @@ int8_t stringtoint8(const std::string &string,bool *ok)
     {
         if(Q_LIKELY(ok!=NULL))
             *ok=true;
-        return tempValue;
+        return (int8_t)tempValue;//range checked by the if
     }
     else
     {
@@ -315,7 +332,9 @@ int8_t stringtoint8(const std::string &string,bool *ok)
 int16_t stringtoint16(const std::string &string,bool *ok)
 {
     #ifdef __EXCEPTIONS
-    int tempValue;
+    //std::stol returns long: see the note in stringtouint8() — truncating here would let an
+    //out-of-range string through the test below
+    long tempValue;
     try {
       tempValue = std::stol(string);
     }
@@ -331,7 +350,7 @@ int16_t stringtoint16(const std::string &string,bool *ok)
     {
         if(Q_LIKELY(ok!=NULL))
             *ok=true;
-        return tempValue;
+        return (int16_t)tempValue;//range checked by the if
     }
     else
     {
@@ -375,7 +394,8 @@ int16_t stringtoint16(const std::string &string,bool *ok)
 int32_t stringtoint32(const std::string &string,bool *ok)
 {
     #ifdef __EXCEPTIONS
-    int32_t tempValue;
+    //long, plus the range test that was missing here (std::stol goes well past int32)
+    long tempValue;
     try {
       tempValue = std::stol(string);
     }
@@ -387,9 +407,18 @@ int32_t stringtoint32(const std::string &string,bool *ok)
             *ok=false;
         return 0;
     }
+    if(Q_UNLIKELY(tempValue>0x7FFFFFFF || tempValue<-0x7FFFFFFF-1))
+    {
+        #ifdef CATCHCHALLENGER_EXTRA_CHECK
+        std::cerr << "Convertion failed and repported at " << __FILE__ << ":" << __LINE__ << std::endl;
+        #endif
+        if(Q_LIKELY(ok!=NULL))
+            *ok=false;
+        return 0;
+    }
     if(Q_LIKELY(ok!=NULL))
         *ok=true;
-    return tempValue;
+    return (int32_t)tempValue;
     #else
     if(Q_LIKELY(std::regex_match(string,isasignednumber)))
     {

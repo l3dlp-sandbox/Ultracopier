@@ -102,7 +102,7 @@ quint32 ClientCatchcopy::sendRawOrderList(const QStringList & order)
         int byteWriten;
         blockToSend=block.left(32*1024);//32KB
         block.remove(0,blockToSend.size());
-        byteWriten = socket.write(blockToSend);
+        byteWriten = (int)socket.write(blockToSend);
         if(!socket.isValid())
         {
             error_string="Socket is not valid";
@@ -142,7 +142,7 @@ void ClientCatchcopy::readyRead()
             QDataStream in(&socket);
             in.setVersion(QDataStream::Qt_4_4);
             in >> dataSize;
-            dataSize-=sizeof(int);
+            dataSize-=(int)sizeof(int);
             if(dataSize>64*1024*1024) // 64MB
             {
                 error_string="Reply size is >64MB, seam corrupted";

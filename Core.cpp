@@ -828,9 +828,9 @@ void Core::periodicSynchronizationWithIndex(const int &index)
         {
             if((currentCopyInstance.action==Ultracopier::Copying || currentCopyInstance.action==Ultracopier::CopyingAndListing))
             {
-                currentCopyInstance.lastSpeedTime.push_back(currentCopyInstance.lastProgressionTime.elapsed());
+                currentCopyInstance.lastSpeedTime.push_back((double)currentCopyInstance.lastProgressionTime.elapsed());
                 currentCopyInstance.lastSpeedDetected.push_back(diffCopiedSize);
-                currentCopyInstance.lastAverageSpeedTime.push_back(currentCopyInstance.lastProgressionTime.elapsed());
+                currentCopyInstance.lastAverageSpeedTime.push_back((double)currentCopyInstance.lastProgressionTime.elapsed());
                 currentCopyInstance.lastAverageSpeedDetected.push_back(diffCopiedSize);
                 while(currentCopyInstance.lastSpeedTime.size()>ULTRACOPIER_MAXVALUESPEEDSTORED)
                     currentCopyInstance.lastSpeedTime.erase(currentCopyInstance.lastSpeedTime.cbegin());
@@ -848,7 +848,7 @@ void Core::periodicSynchronizationWithIndex(const int &index)
                 while(index_sub_loop<currentCopyInstance.lastSpeedDetected.size())
                 {
                     totTime+=currentCopyInstance.lastSpeedTime.at(index_sub_loop);
-                    totSpeed+=currentCopyInstance.lastSpeedDetected.at(index_sub_loop);
+                    totSpeed+=(double)currentCopyInstance.lastSpeedDetected.at(index_sub_loop);
                     index_sub_loop++;
                 }
                 totTime/=1000;
@@ -858,14 +858,14 @@ void Core::periodicSynchronizationWithIndex(const int &index)
                 while(index_sub_loop<currentCopyInstance.lastAverageSpeedDetected.size())
                 {
                     totAverageTime+=currentCopyInstance.lastAverageSpeedTime.at(index_sub_loop);
-                    totAverageSpeed+=currentCopyInstance.lastAverageSpeedDetected.at(index_sub_loop);
+                    totAverageSpeed+=(double)currentCopyInstance.lastAverageSpeedDetected.at(index_sub_loop);
                     index_sub_loop++;
                 }
                 totAverageTime/=1000;
 
                 if(totTime>0)
                     if(currentCopyInstance.lastAverageSpeedDetected.size()>=ULTRACOPIER_MINVALUESPEED)
-                        currentCopyInstance.interface->detectedSpeed(totSpeed/totTime);
+                        currentCopyInstance.interface->detectedSpeed((uint64_t)(totSpeed/totTime));
 
                 if(totAverageTime>0)
                     if(currentCopyInstance.lastAverageSpeedDetected.size()>=ULTRACOPIER_MINVALUESPEEDTOREMAININGTIME)
@@ -878,7 +878,7 @@ void Core::periodicSynchronizationWithIndex(const int &index)
                                 if(currentCopyInstance.totalProgression==0 || currentCopyInstance.currentProgression==0)
                                     currentCopyInstance.interface->remainingTime(-1);
                                 else if((currentCopyInstance.totalProgression-currentCopyInstance.currentProgression)>1024)
-                                    currentCopyInstance.interface->remainingTime((currentCopyInstance.totalProgression-currentCopyInstance.currentProgression)/(totAverageSpeed/totAverageTime));
+                                    currentCopyInstance.interface->remainingTime((int)((double)(currentCopyInstance.totalProgression-currentCopyInstance.currentProgression)/(totAverageSpeed/totAverageTime)));
                             }
                             else
                                 currentCopyInstance.interface->remainingTime(-1);
@@ -904,9 +904,9 @@ void Core::periodicSynchronizationWithIndex(const int &index)
                                     }
                                     if(!remainingTimeLogarithmicColumn.lastProgressionSpeed.empty())
                                     {
-                                        average_speed/=remainingTimeLogarithmicColumn.lastProgressionSpeed.size();
+                                        average_speed/=(int)remainingTimeLogarithmicColumn.lastProgressionSpeed.size();
                                         if(average_speed!=0)
-                                            remainingTimeValue+=remainingSize/average_speed;
+                                            remainingTimeValue+=(int)(remainingSize/average_speed);
                                     }
                                 }
                                 //fallback
@@ -920,7 +920,7 @@ void Core::periodicSynchronizationWithIndex(const int &index)
                                         else if((currentCopyInstance.totalProgression-currentCopyInstance.currentProgression)>1024)
                                         {
                                             if(totAverageSpeed!=0)
-                                                remainingTimeValue+=remainingSize/totAverageSpeed;
+                                                remainingTimeValue+=(int)((double)remainingSize/totAverageSpeed);
                                         }
                                     }
                                     else
@@ -946,7 +946,12 @@ uint8_t Core::fileCatNumber(uint64_t size)
     if(size>ULTRACOPIER_REMAININGTIME_BIGFILEMEGABYTEBASE10*1000*1000)
         size=ULTRACOPIER_REMAININGTIME_BIGFILEMEGABYTEBASE10*1000*1000;
     size=size/100;//to group all the too small file into the value 0
-    return log10(size);
+    if(size==0)
+        //log10(0) is -inf and converting that to an integer is undefined behaviour.
+        //0 is what the line above intends for those files anyway.
+        return 0;
+    //size is clamped above, so log10() stays well inside uint8_t
+    return (uint8_t)log10((double)size);
 }
 
 /// \brief the copy engine have canceled the transfer

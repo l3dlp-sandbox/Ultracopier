@@ -33,7 +33,7 @@ PluginInterface_Themes * ThemesFactory::getInstance()
                 ui->showProgressionInTheTitle->isChecked(),
                 progressColorWrite,progressColorRead,progressColorRemaining,
                 ui->showDualProgression->isChecked(),
-                ui->comboBox_copyEnd->currentIndex(),
+                (quint8)ui->comboBox_copyEnd->currentIndex(),
                 ui->speedWithProgressBar->isChecked(),
                 currentSpeed,
                 ui->checkBoxShowSpeed->isChecked(),
@@ -42,9 +42,9 @@ PluginInterface_Themes * ThemesFactory::getInstance()
                 ui->minimizeToSystray->isChecked(),
                 ui->startMinimized->isChecked(),
                 ui->savePosition->isChecked(),
-                ui->generalMargin->value(),
-                ui->generalSpacing->value(),
-                ui->fileProgression->currentIndex()
+                (qint8)ui->generalMargin->value(),//QSpinBox with no explicit range: 0..99
+                (qint8)ui->generalSpacing->value(),//idem
+                (qint8)ui->fileProgression->currentIndex()
                 );
     #ifdef ULTRACOPIER_PLUGIN_DEBUG
     if(!connect(newInterface,&Themes::debugInformation,this,&PluginInterface_ThemesFactory::debugInformation))

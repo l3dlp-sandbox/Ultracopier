@@ -86,7 +86,7 @@ int vectorindexOf(const std::vector<T> &list,const T &item)
     if(r==list.cend())
         return -1;
     else
-        return std::distance(list.cbegin(),r);
+        return (int)std::distance(list.cbegin(),r);
 }
 
 template <class T>

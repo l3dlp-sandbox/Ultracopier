@@ -84,7 +84,7 @@ bool LocalListener::tryConnect()
         out.device()->seek(0);
         if(block.size()<=0)
             return false;
-        stot=block.size();
+        stot=(quint32)block.size();
         out << stot;
         //do
         {
@@ -243,7 +243,7 @@ void LocalListener::dataIncomming()
                 ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"c.size>0x00ffffff seam buggy "+c.data.toHex().toStdString());
             else
             {
-                c.size-=sizeof(int);//quit the size of size header
+                c.size-=(quint32)sizeof(int);//quit the size of size header
 
                 // Check if all the message size is the same as the size given
                 if(socket->bytesAvailable() < c.size) // If not all get then stop it

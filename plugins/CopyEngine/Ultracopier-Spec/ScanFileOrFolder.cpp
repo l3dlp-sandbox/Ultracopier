@@ -4,6 +4,26 @@
 #include <regex>
 #include "../../../cpp11addition.h"
 
+//Split a name into base + suffix the way FileExistsDialog::on_SuggestNewName_clicked()
+//does with the regex ^(.*)(\.[a-z0-9]+)$: the suffix keeps its dot, and a name with no
+//lowercase-alphanumeric extension gives an empty suffix.
+static void splitNameAndSuffix(const INTERNALTYPEPATH &name,INTERNALTYPEPATH &base,INTERNALTYPEPATH &suffix)
+{
+    base=name;
+    suffix.clear();
+    const INTERNALTYPEPATH::size_type dot=name.rfind('.');
+    if(dot==INTERNALTYPEPATH::npos || (dot+1)>=name.size())
+        return;
+    for(INTERNALTYPEPATH::size_type i=dot+1;i<name.size();i++)
+    {
+        const INTERNALTYPEPATH::value_type c=name[i];
+        if(!((c>='a' && c<='z') || (c>='0' && c<='9')))
+            return;
+    }
+    suffix=name.substr(dot);
+    base=name.substr(0,dot);
+}
+
 #ifdef Q_OS_WIN32
     #ifndef NOMINMAX
         #define NOMINMAX
@@ -420,7 +440,7 @@ bool ScanFileOrFolder::isBlackListed(const INTERNALTYPEPATH &path)
     if(ignoreBlackList)
         return false;
     int index=0;
-    int size=blackList.size();
+    int size=(int)blackList.size();
     INTERNALTYPEPATH path2=path;
     while(index<size)
     {
@@ -485,9 +505,20 @@ void ScanFileOrFolder::listFolder(INTERNALTYPEPATH source,INTERNALTYPEPATH desti
                 ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"destination before rename: "+TransferThread::internalStringTostring(destination));
                 if(newName.empty())
                 {
-                    //ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"pattern: "+folder_isolation.str());
                     //resolv the new name
-                    destinationSuffixPath=TransferThread::resolvedName(destination);
+                    //%name% is the base name and %suffix% the extension WITH its dot, exactly as
+                    //RenamingRules.ui documents them and as FileExistsDialog::on_SuggestNewName_clicked()
+                    //splits them (regex ^(.*)(\.[a-z0-9]+)$). %suffix% was never substituted here, so a
+                    //user rule containing it produced a literal "%suffix%" in the file name.
+                    INTERNALTYPEPATH originalDir=FSabsolutePath(destination);
+                    if(!stringEndsWith(originalDir,'/')
+                        #ifdef Q_OS_WIN32
+                            && !stringEndsWith(originalDir,'\\')
+                        #endif
+                            )
+                        originalDir+=text_slash;
+                    INTERNALTYPEPATH baseName,suffix;
+                    splitNameAndSuffix(TransferThread::resolvedName(destination),baseName,suffix);
                     int num=1;
                     do
                     {
@@ -495,9 +526,9 @@ void ScanFileOrFolder::listFolder(INTERNALTYPEPATH source,INTERNALTYPEPATH desti
                         {
                             if(firstRenamingRule.empty())
                                 #ifdef WIDESTRING
-                                destinationSuffixPath=tr("%1 - copy").arg(QString::fromStdWString(TransferThread::resolvedName(destination))).toStdWString();
+                                destinationSuffixPath=tr("%name% - copy%suffix%").toStdWString();
                                 #else
-                                destinationSuffixPath=tr("%1 - copy").arg(QString::fromStdString(TransferThread::resolvedName(destination))).toStdString();
+                                destinationSuffixPath=tr("%name% - copy%suffix%").toStdString();
                                 #endif
                             else
                                 destinationSuffixPath=TransferThread::stringToInternalString(firstRenamingRule);
@@ -506,55 +537,27 @@ void ScanFileOrFolder::listFolder(INTERNALTYPEPATH source,INTERNALTYPEPATH desti
                         {
                             if(otherRenamingRule.empty())
                                 #ifdef WIDESTRING
-                                destinationSuffixPath=tr("%1 - copy (%2)").arg(QString::fromStdWString(TransferThread::resolvedName(destination))).arg(num).toStdWString();
+                                destinationSuffixPath=tr("%name% - copy (%number%)%suffix%").toStdWString();
                                 #else
-                                destinationSuffixPath=tr("%1 - copy (%2)").arg(QString::fromStdString(TransferThread::resolvedName(destination))).arg(num).toStdString();
+                                destinationSuffixPath=tr("%name% - copy (%number%)%suffix%").toStdString();
                                 #endif
                             else
-                            {
                                 destinationSuffixPath=TransferThread::stringToInternalString(otherRenamingRule);
-                                #ifdef WIDESTRING
-                                stringreplaceAll(destinationSuffixPath,L"%number%",std::to_wstring(num));
-                                #else
-                                stringreplaceAll(destinationSuffixPath,"%number%",std::to_string(num));
-                                #endif
-                            }
+                            #ifdef WIDESTRING
+                            stringreplaceAll(destinationSuffixPath,L"%number%",std::to_wstring(num));
+                            #else
+                            stringreplaceAll(destinationSuffixPath,"%number%",std::to_string(num));
+                            #endif
                         }
                         #ifdef WIDESTRING
-                        stringreplaceAll(destinationSuffixPath,L"%name%",TransferThread::resolvedName(destination));
+                        stringreplaceAll(destinationSuffixPath,L"%name%",baseName);
+                        stringreplaceAll(destinationSuffixPath,L"%suffix%",suffix);
                         #else
-                        stringreplaceAll(destinationSuffixPath,"%name%",TransferThread::resolvedName(destination));
+                        stringreplaceAll(destinationSuffixPath,"%name%",baseName);
+                        stringreplaceAll(destinationSuffixPath,"%suffix%",suffix);
                         #endif
                         num++;
-                        {
-                            std::string::size_type n=destination.rfind('/');
-                            if(n == std::string::npos)
-                                n=destination.rfind('.');
-                            else
-                                n=destination.rfind(n,'.');
-                            if(n == std::string::npos)
-                            {
-                                destination=FSabsolutePath(destination);
-                                if(!stringEndsWith(destination,'/')
-                                    #ifdef Q_OS_WIN32
-                                        && !stringEndsWith(destination,'\\')
-                                    #endif
-                                        )
-                                    destination+=text_slash;
-                                destination+=destinationSuffixPath;
-                            }
-                            else
-                            {
-                                destination=FSabsolutePath(destination);
-                                if(!stringEndsWith(destination,'/')
-                                    #ifdef Q_OS_WIN32
-                                        && !stringEndsWith(destination,'\\')
-                                    #endif
-                                        )
-                                    destination+=text_slash;
-                                destination+=destinationSuffixPath+TransferThread::stringToInternalString(".")+destination.substr(n);
-                            }
-                        }
+                        destination=originalDir+destinationSuffixPath;
                     }
                     while(TransferThread::exists(destination));
                 }
@@ -611,6 +614,19 @@ void ScanFileOrFolder::listFolder(INTERNALTYPEPATH source,INTERNALTYPEPATH desti
                     if(newName.empty())
                     {
                         //resolv the new name
+                        //%name% is the base name and %suffix% the extension WITH its dot, exactly as
+                        //RenamingRules.ui documents them and as FileExistsDialog::on_SuggestNewName_clicked()
+                        //splits them (regex ^(.*)(\.[a-z0-9]+)$). %suffix% was never substituted here, so a
+                        //user rule containing it produced a literal "%suffix%" in the file name.
+                        INTERNALTYPEPATH originalDir=FSabsolutePath(destination);
+                        if(!stringEndsWith(originalDir,'/')
+                            #ifdef Q_OS_WIN32
+                                && !stringEndsWith(originalDir,'\\')
+                            #endif
+                                )
+                            originalDir+=text_slash;
+                        INTERNALTYPEPATH baseName,suffix;
+                        splitNameAndSuffix(TransferThread::resolvedName(destination),baseName,suffix);
                         int num=1;
                         INTERNALTYPEPATH tempdestination;
                         do
@@ -619,9 +635,9 @@ void ScanFileOrFolder::listFolder(INTERNALTYPEPATH source,INTERNALTYPEPATH desti
                             {
                                 if(firstRenamingRule.empty())
                                     #ifdef WIDESTRING
-                                    destinationSuffixPath=tr("%name% - copy").toStdWString();
+                                    destinationSuffixPath=tr("%name% - copy%suffix%").toStdWString();
                                     #else
-                                    destinationSuffixPath=tr("%name% - copy").toStdString();
+                                    destinationSuffixPath=tr("%name% - copy%suffix%").toStdString();
                                     #endif
                                 else
                                     destinationSuffixPath=TransferThread::stringToInternalString(firstRenamingRule);
@@ -630,9 +646,9 @@ void ScanFileOrFolder::listFolder(INTERNALTYPEPATH source,INTERNALTYPEPATH desti
                             {
                                 if(otherRenamingRule.empty())
                                     #ifdef WIDESTRING
-                                    destinationSuffixPath=tr("%name% - copy (%number%)").toStdWString();
+                                    destinationSuffixPath=tr("%name% - copy (%number%)%suffix%").toStdWString();
                                     #else
-                                    destinationSuffixPath=tr("%name% - copy (%number%)").toStdString();
+                                    destinationSuffixPath=tr("%name% - copy (%number%)%suffix%").toStdString();
                                     #endif
                                 else
                                     destinationSuffixPath=TransferThread::stringToInternalString(otherRenamingRule);
@@ -643,56 +659,30 @@ void ScanFileOrFolder::listFolder(INTERNALTYPEPATH source,INTERNALTYPEPATH desti
                                 #endif
                             }
                             #ifdef WIDESTRING
-                            stringreplaceAll(destinationSuffixPath,L"%name%",TransferThread::resolvedName(destination));
+                            stringreplaceAll(destinationSuffixPath,L"%name%",baseName);
+                            stringreplaceAll(destinationSuffixPath,L"%suffix%",suffix);
                             #else
-                            stringreplaceAll(destinationSuffixPath,"%name%",TransferThread::resolvedName(destination));
+                            stringreplaceAll(destinationSuffixPath,"%name%",baseName);
+                            stringreplaceAll(destinationSuffixPath,"%suffix%",suffix);
                             #endif
-                            tempdestination=FSabsolutePath(destination);
-                            if(!stringEndsWith(destination,'/')
-                                #ifdef Q_OS_WIN32
-                                    && !stringEndsWith(destination,'\\')
-                                #endif
-                                    )
-                                tempdestination+=text_slash;
-                            tempdestination+=destinationSuffixPath;
                             num++;
+                            tempdestination=originalDir+destinationSuffixPath;
                         }
                         while(TransferThread::exists(tempdestination));
+                        destination=tempdestination;
                     }
                     else
                     {
                         ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"use new name: "+TransferThread::internalStringTostring(newName));
                         destinationSuffixPath = newName;
-                    }
-                    {
-                        std::string::size_type n=destination.rfind('/');
-                        if(n == std::string::npos)
-                            n=destination.rfind('.');
-                        else
-                            n=destination.rfind(n,'.');
-                        if(n == std::string::npos)
-                        {
-                            destination=FSabsolutePath(destination);
-                            if(!stringEndsWith(destination,'/')
-                                #ifdef Q_OS_WIN32
-                                    && !stringEndsWith(destination,'\\')
-                                #endif
-                                    )
-                                destination+=text_slash;
-                            destination+=destinationSuffixPath;
-                        }
-                        else
-                        {
-                            destination=FSabsolutePath(destination);
-                            if(!stringEndsWith(destination,'/')
-                                #ifdef Q_OS_WIN32
-                                    && !stringEndsWith(destination,'\\')
-                                #endif
-                                    )
-                                destination+=text_slash;
-                            destination+=destinationSuffixPath+
-                                    TransferThread::stringToInternalString(".")+destination.substr(n);
-                        }
+                        INTERNALTYPEPATH renamedDir=FSabsolutePath(destination);
+                        if(!stringEndsWith(renamedDir,'/')
+                            #ifdef Q_OS_WIN32
+                                && !stringEndsWith(renamedDir,'\\')
+                            #endif
+                                )
+                            renamedDir+=text_slash;
+                        destination=renamedDir+destinationSuffixPath;
                     }
                     ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"destination after rename: "+TransferThread::internalStringTostring(destination));
                 break;
@@ -764,7 +754,7 @@ void ScanFileOrFolder::listFolder(INTERNALTYPEPATH source,INTERNALTYPEPATH desti
                 ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Critical,"path source contains error");
         #endif
     #endif
-    const unsigned int sizeEntryList=entryList.size();
+    const unsigned int sizeEntryList=(unsigned int)entryList.size();
     emit newFolderListing(TransferThread::internalStringTostring(source));
     if(mode!=Ultracopier::Move)
         emit addToMkPath(source,destination,sizeEntryList);

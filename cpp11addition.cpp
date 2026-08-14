@@ -298,7 +298,8 @@ uint8_t hexToDecUnit(const std::string& data, bool *ok)
             *ok=false;
         return 0;
     };
-    return fromHex(data[0],ok) << 4 | fromHex(data[1],ok);
+    //both nibbles are 0..15, so the result is 0..255
+    return (uint8_t)(fromHex(data[0],ok) << 4 | fromHex(data[1],ok));
 }
 
 std::vector<char> hexatoBinary(const std::string &data,bool *ok)
@@ -356,7 +357,7 @@ void binaryAppend(std::vector<char> &data,const std::vector<char> &add)
         data=add;
         return;
     }
-    const int oldsize=data.size();
+    const int oldsize=(int)data.size();
     data.resize(oldsize+add.size());
     memcpy(data.data()+oldsize,add.data(),add.size());
 }
@@ -371,7 +372,7 @@ void binaryAppend(std::vector<char> &data,const char * const add,const uint32_t 
         memcpy(data.data(),add,addSize);
         return;
     }
-    const int oldsize=data.size();
+    const int oldsize=(int)data.size();
     data.resize(oldsize+addSize);
     memcpy(data.data()+oldsize,add,addSize);
 }
@@ -380,7 +381,7 @@ std::vector<char> base64toBinary(const std::string &string)
 {
     int index=0;
     int sub_index=0;
-    int encoded_string_remaining=string.size();
+    int encoded_string_remaining=(int)string.size();
     int encoded_string_pos=0;
     unsigned char char_array_4[4], char_array_3[3];
     std::vector<char> ret;
@@ -392,11 +393,13 @@ std::vector<char> base64toBinary(const std::string &string)
         if(index==4)
         {
             for(index=0;index<4;index++)
-                char_array_4[index]=base64_chars.find(char_array_4[index]);
+                //the while above already rejected anything is_base64() does not accept,
+                //so find() is 0..63 here and never npos
+                char_array_4[index]=(unsigned char)base64_chars.find(char_array_4[index]);
 
-            char_array_3[0]=(char_array_4[0]<<2) + ((char_array_4[1]&0x30)>>4);
-            char_array_3[1]=((char_array_4[1]&0xf)<<4) + ((char_array_4[2]&0x3c)>>2);
-            char_array_3[2]=((char_array_4[2]&0x3)<<6) + char_array_4[3];
+            char_array_3[0]=(unsigned char)((char_array_4[0]<<2) + ((char_array_4[1]&0x30)>>4));
+            char_array_3[1]=(unsigned char)(((char_array_4[1]&0xf)<<4) + ((char_array_4[2]&0x3c)>>2));
+            char_array_3[2]=(unsigned char)(((char_array_4[2]&0x3)<<6) + char_array_4[3]);
 
             for(index=0;(index<3);index++)
                 ret.push_back(char_array_3[index]);
@@ -411,11 +414,14 @@ std::vector<char> base64toBinary(const std::string &string)
             char_array_4[sub_index]=0;
 
         for(sub_index=0;sub_index<4;sub_index++)
-            char_array_4[sub_index]=base64_chars.find(char_array_4[sub_index]);
+        //the padding entries were set to 0 just above and 0 is not a base64 char, so
+        //find() returns npos and these decode to 0xFF - harmless, the loop below only
+        //pushes char_array_3[0..index-2], which is built from the real characters
+        char_array_4[sub_index]=(unsigned char)base64_chars.find(char_array_4[sub_index]);
 
-        char_array_3[0]=(char_array_4[0]<<2) + ((char_array_4[1]&0x30)>>4);
-        char_array_3[1]=((char_array_4[1]&0xf)<<4) + ((char_array_4[2]&0x3c)>>2);
-        char_array_3[2]=((char_array_4[2]&0x3)<<6) + char_array_4[3];
+        char_array_3[0]=(unsigned char)((char_array_4[0]<<2) + ((char_array_4[1]&0x30)>>4));
+        char_array_3[1]=(unsigned char)(((char_array_4[1]&0xf)<<4) + ((char_array_4[2]&0x3c)>>2));
+        char_array_3[2]=(unsigned char)(((char_array_4[2]&0x3)<<6) + char_array_4[3]);
 
         for (sub_index=0;(sub_index<index-1);sub_index++)
             ret.push_back(char_array_3[sub_index]);

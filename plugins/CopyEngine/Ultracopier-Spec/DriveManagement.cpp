@@ -82,7 +82,7 @@ std::string DriveManagement::getDrive(const std::string &fileOrFolder) const
         return QDir::toNativeSeparators(QString::fromStdString(returnString)).toUpper().toStdString();
     }
     #else
-    int size=mountSysPoint.size();
+    int size=(int)mountSysPoint.size();
     for (int i = 0; i < size; ++i) {
         if(stringStartWith(inode,mountSysPoint.at(i)))
             return mountSysPoint.at(i);

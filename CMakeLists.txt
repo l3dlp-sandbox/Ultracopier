@@ -9,6 +9,26 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Mirrors other-pro/ultracopier-core.pro. -Wconversion is the one that reports
+# implicit narrowing (an int folded into a uint8_t/uint16_t, a size_t into an int,
+# ...); -Wall/-Wextra are silent on it. MSVC spells its warnings differently, so
+# keep this to the GCC/Clang-compatible drivers.
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(-Wall -Wextra -Wconversion)
+    # lib/qt-tar-xz/ is vendored upstream xz code (the .pro drops it from SOURCES
+    # altogether). Don't lint what we don't maintain — it would only bury the
+    # warnings in our own sources.
+    set_source_files_properties(
+        lib/qt-tar-xz/QXzDecodeThread.cpp
+        lib/qt-tar-xz/QXzDecode.cpp
+        lib/qt-tar-xz/QTarDecode.cpp
+        lib/qt-tar-xz/xz_crc32.c
+        lib/qt-tar-xz/xz_dec_stream.c
+        lib/qt-tar-xz/xz_dec_lzma2.c
+        lib/qt-tar-xz/xz_dec_bcj.c
+        PROPERTIES COMPILE_OPTIONS "-Wno-conversion")
+endif()
+
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Network)

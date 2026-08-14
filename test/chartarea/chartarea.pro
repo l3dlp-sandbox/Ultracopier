@@ -33,3 +33,6 @@ HEADERS += \
 
 FORMS += \
         MainWindow.ui
+
+# Same warning set as other-pro/ultracopier-core.pro.
+QMAKE_CXXFLAGS += -Wall -Wextra -Wconversion

@@ -13,3 +13,6 @@ INCLUDEPATH += $$IFACE
 SOURCES += $$PWD/pathtreestr_test.cpp \
            $$IFACE/PathTreeStr.cpp
 HEADERS += $$IFACE/PathTreeStr.h
+
+# Same warning set as other-pro/ultracopier-core.pro.
+QMAKE_CXXFLAGS += -Wall -Wextra -Wconversion

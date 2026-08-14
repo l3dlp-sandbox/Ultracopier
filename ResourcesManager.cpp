@@ -187,7 +187,7 @@ bool ResourcesManager::removeFolder(const std::string &dir)
     QDir currentDir(QString::fromStdString(dir));
     QFileInfoList files = currentDir.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot);
     int index=0;
-    const int &loop_size=files.size();
+    const int &loop_size=(int)files.size();
     while(index<loop_size)
     {
         if(files.at(index).isFile())

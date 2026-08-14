@@ -36,3 +36,6 @@ SOURCES += \
 
 RESOURCES += \
     res.qrc
+
+# Same warning set as other-pro/ultracopier-core.pro.
+QMAKE_CXXFLAGS += -Wall -Wextra -Wconversion

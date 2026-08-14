@@ -94,7 +94,7 @@ QVariant TransferModel::data( const QModelIndex& index, int role ) const
 
 int TransferModel::rowCount( const QModelIndex& parent ) const
 {
-    return parent == QModelIndex() ? transfertItemList.size() : 0;
+    return parent == QModelIndex() ? (int)transfertItemList.size() : 0;
 }
 
 uint64_t TransferModel::firstId() const
@@ -292,7 +292,7 @@ std::vector<uint64_t> TransferModel::synchronizeItems(const std::vector<Ultracop
         oldMapping[index.row()] = index.data( Qt::UserRole ).value<quint64>();
     }
 
-    loop_size=returnActions.size();
+    loop_size=(int)returnActions.size();
     index_for_loop=0;
     quint64 totalFile=0,totalSize=0,currentFile=0;
     emit layoutAboutToBeChanged();
@@ -328,7 +328,7 @@ std::vector<uint64_t> TransferModel::synchronizeItems(const std::vector<Ultracop
                 std::unique_ptr<TransfertItem> newItem(new TransfertItem);
                 newItem->id=action.addAction.id;
                 newItem->srcNode=pathTreeStr.intern(action.addAction.sourceFullPath);
-                newItem->size=facilityEngine->sizeToString(action.addAction.size);
+                newItem->size=facilityEngine->sizeToString((double)action.addAction.size);
                 newItem->dstNode=pathTreeStr.intern(action.addAction.destinationFullPath);
                 transfertItemList.push_back(std::move(newItem));
                 totalFile++;
@@ -519,7 +519,7 @@ int TransferModel::search(const std::string &text, bool searchNext)
             currentIndexSearch=0;
     }
     index_for_loop=0;
-    loop_size=transfertItemList.size();
+    loop_size=(int)transfertItemList.size();
     while(index_for_loop<loop_size)
     {
         const TransfertItem &transfertItem=*transfertItemList.at(currentIndexSearch);
@@ -553,7 +553,7 @@ int TransferModel::searchPrev(const std::string &text)
     else
         currentIndexSearch--;
     index_for_loop=0;
-    loop_size=transfertItemList.size();
+    loop_size=(int)transfertItemList.size();
     while(index_for_loop<loop_size)
     {
         const TransfertItem &transfertItem=*transfertItemList.at(currentIndexSearch);
@@ -576,7 +576,7 @@ int TransferModel::searchPrev(const std::string &text)
 
 void TransferModel::setFileProgression(std::vector<Ultracopier::ProgressionItem> &progressionList)
 {
-    loop_size=progressionList.size();
+    loop_size=(int)progressionList.size();
     index_for_loop=0;
     while(index_for_loop<loop_size)
     {
@@ -615,7 +615,7 @@ TransferModel::currentTransfertItem TransferModel::getCurrentTransfertItem() con
         const ItemOfCopyListWithMoreInformations &itemTransfer=internalRunningOperation.at(*startId.cbegin());
         returnItem.from=itemTransfer.generalData.sourceFullPath;
         returnItem.to=itemTransfer.generalData.destinationFullPath;
-        returnItem.current_file=itemTransfer.generalData.destinationFileName+", "+facilityEngine->sizeToString(itemTransfer.generalData.size);
+        returnItem.current_file=itemTransfer.generalData.destinationFileName+", "+facilityEngine->sizeToString((double)itemTransfer.generalData.size);
         returnItem.id=itemTransfer.generalData.id;
         switch(itemTransfer.actionType)
         {
@@ -626,8 +626,8 @@ TransferModel::currentTransfertItem TransferModel::getCurrentTransfertItem() con
             {
                 if(itemTransfer.generalData.size>0)
                 {
-                    returnItem.progressBar_read=((double)itemTransfer.currentReadProgression/itemTransfer.generalData.size)*65535;
-                    returnItem.progressBar_write=((double)itemTransfer.currentWriteProgression/itemTransfer.generalData.size)*65535;
+                    returnItem.progressBar_read=(int)(((double)itemTransfer.currentReadProgression/(double)itemTransfer.generalData.size)*65535);
+                    returnItem.progressBar_write=(int)(((double)itemTransfer.currentWriteProgression/(double)itemTransfer.generalData.size)*65535);
                 }
                 else
                     returnItem.progressBar_read=-1;
@@ -636,8 +636,8 @@ TransferModel::currentTransfertItem TransferModel::getCurrentTransfertItem() con
             case Ultracopier::Transfer:
             if(itemTransfer.generalData.size>0)
             {
-                returnItem.progressBar_read=((double)itemTransfer.currentReadProgression/itemTransfer.generalData.size)*65535;
-                returnItem.progressBar_write=((double)itemTransfer.currentWriteProgression/itemTransfer.generalData.size)*65535;
+                returnItem.progressBar_read=(int)(((double)itemTransfer.currentReadProgression/(double)itemTransfer.generalData.size)*65535);
+                returnItem.progressBar_write=(int)(((double)itemTransfer.currentWriteProgression/(double)itemTransfer.generalData.size)*65535);
             }
             else
             {
@@ -677,7 +677,7 @@ TransferModel::currentTransfertItem TransferModel::getCurrentTransfertItem() con
             const ItemOfCopyListWithMoreInformations &itemTransfer=internalRunningOperation.at(*stopId.cbegin());
             returnItem.from=itemTransfer.generalData.sourceFullPath;
             returnItem.to=itemTransfer.generalData.destinationFullPath;
-            returnItem.current_file=itemTransfer.generalData.destinationFileName+", "+facilityEngine->sizeToString(itemTransfer.generalData.size);
+            returnItem.current_file=itemTransfer.generalData.destinationFileName+", "+facilityEngine->sizeToString((double)itemTransfer.generalData.size);
             returnItem.id=itemTransfer.generalData.id;
             switch(itemTransfer.actionType)
             {
@@ -688,8 +688,8 @@ TransferModel::currentTransfertItem TransferModel::getCurrentTransfertItem() con
                 {
                     if(itemTransfer.generalData.size>0)
                     {
-                        returnItem.progressBar_read=((double)itemTransfer.currentReadProgression/itemTransfer.generalData.size)*65535;
-                        returnItem.progressBar_write=((double)itemTransfer.currentWriteProgression/itemTransfer.generalData.size)*65535;
+                        returnItem.progressBar_read=(int)(((double)itemTransfer.currentReadProgression/(double)itemTransfer.generalData.size)*65535);
+                        returnItem.progressBar_write=(int)(((double)itemTransfer.currentWriteProgression/(double)itemTransfer.generalData.size)*65535);
                     }
                     else
                         returnItem.progressBar_read=-1;
@@ -698,8 +698,8 @@ TransferModel::currentTransfertItem TransferModel::getCurrentTransfertItem() con
                 case Ultracopier::Transfer:
                 if(itemTransfer.generalData.size>0)
                 {
-                    returnItem.progressBar_read=((double)itemTransfer.currentReadProgression/itemTransfer.generalData.size)*65535;
-                    returnItem.progressBar_write=((double)itemTransfer.currentWriteProgression/itemTransfer.generalData.size)*65535;
+                    returnItem.progressBar_read=(int)(((double)itemTransfer.currentReadProgression/(double)itemTransfer.generalData.size)*65535);
+                    returnItem.progressBar_write=(int)(((double)itemTransfer.currentWriteProgression/(double)itemTransfer.generalData.size)*65535);
                 }
                 else
                 {

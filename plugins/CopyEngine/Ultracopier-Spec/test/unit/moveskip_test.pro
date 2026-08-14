@@ -53,3 +53,6 @@ equals(XXHASH_USE_VENDOR, 1) {
 } else {
     LIBS += -lxxhash
 }
+
+# Same warning set as other-pro/ultracopier-core.pro.
+QMAKE_CXXFLAGS += -Wall -Wextra -Wconversion

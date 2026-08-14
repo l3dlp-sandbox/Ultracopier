@@ -80,7 +80,7 @@ std::vector<std::string> ServerCatchcopy::clientsList() const
 {
     std::vector<std::string> clients;
     int index=0;
-    int size=clientList.size();
+    int size=(int)clientList.size();
     while(index<size)
     {
         clients.push_back(clientList[index].name);
@@ -539,7 +539,7 @@ void ServerCatchcopy::readyRead()
                     QDataStream in(socket);
                     in.setVersion(QDataStream::Qt_4_4);
                     in >> clientList[index].dataSize;
-                    clientList[index].dataSize-=sizeof(int);
+                    clientList[index].dataSize-=(uint32_t)sizeof(int);
                     if(clientList.at(index).dataSize>64*1024*1024) // 64MB
                     {
                         error_string="Reply size is >64MB, seam corrupted";
@@ -709,7 +709,7 @@ ServerCatchcopy::inputReturnType ServerCatchcopy::parseInputCurrentProtocol(cons
         if(returnList.size()!=2)
             return WrongArgumentListSize;
         int index=0;
-        int size=clientList.size();
+        int size=(int)clientList.size();
         while(index<size)
         {
             if(clientList.at(index).id==client)
@@ -945,7 +945,7 @@ void ServerCatchcopy::reply(const uint32_t &client,const uint32_t &orderId,const
                     int byteWriten;
                     blockToSend=block.left(32*1024);//32KB
                     block.remove(0,blockToSend.size());
-                    byteWriten = clientList[index].socket->write(blockToSend);
+                    byteWriten = (int)clientList[index].socket->write(blockToSend);
                     if(!clientList[index].socket->isValid())
                     {
                         error_string="Socket is not valid";

@@ -117,7 +117,7 @@ bool ListThread::setSpeedLimitation(const int64_t &speedLimitation)
         ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"speedLimitation out of range");
         return false;
     }
-    this->speedLimitation=speedLimitation;
+    this->speedLimitation=(int)speedLimitation;//>1024*1024 returned above
 
     multiForBigSpeed=0;
     if(speedLimitation>0)
@@ -130,7 +130,7 @@ bool ListThread::setSpeedLimitation(const int64_t &speedLimitation)
         {
             multiForBigSpeed++;
             //at max speed, is out of range for int, it's why quint64 is used
-            newInterval=(((quint64)blockSize*(quint64)multiForBigSpeed*1000/* *1000 because interval is into ms, not s*/)/((quint64)speedLimitation*(quint64)1024));
+            newInterval=(int)(((quint64)blockSize*(quint64)multiForBigSpeed*1000/* *1000 because interval is into ms, not s*/)/((quint64)speedLimitation*(quint64)1024));
             if(newInterval<0)
             {
                 ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"calculated newInterval wrong");
@@ -159,7 +159,7 @@ bool ListThread::setSpeedLimitation(const int64_t &speedLimitation)
             }
 
             //set the new block size into the thread
-            const int &loop_size=transferThreadList.size();
+            const int &loop_size=(int)transferThreadList.size();
             int int_for_loop=0;
             while(int_for_loop<loop_size)
             {
@@ -190,7 +190,7 @@ bool ListThread::setSpeedLimitation(const int64_t &speedLimitation)
         else
             ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Critical,"clockForTheCopySpeed == NULL at this point");
         int int_for_loop=0;
-        const int &loop_size=transferThreadList.size();
+        const int &loop_size=(int)transferThreadList.size();
         while(int_for_loop<loop_size)
         {
             transferThreadList.at(int_for_loop)->setBlockSize(blockSize);
@@ -198,7 +198,7 @@ bool ListThread::setSpeedLimitation(const int64_t &speedLimitation)
         }
     }
     int int_for_loop=0;
-    const int &loop_size=transferThreadList.size();
+    const int &loop_size=(int)transferThreadList.size();
     while(int_for_loop<loop_size)
     {
         transferThreadList.at(int_for_loop)->setMultiForBigSpeed(multiForBigSpeed);

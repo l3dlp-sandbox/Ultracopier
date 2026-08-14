@@ -1,5 +1,5 @@
 CONFIG += c++17
-QMAKE_CXXFLAGS+="-std=c++0x -Wall -Wextra"
+QMAKE_CXXFLAGS+="-std=c++0x -Wall -Wextra -Wconversion"
 mac:QMAKE_CXXFLAGS+="-stdlib=libc++"
 
 QT += widgets xml

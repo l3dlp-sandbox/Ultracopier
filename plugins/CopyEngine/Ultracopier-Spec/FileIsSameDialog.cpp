@@ -80,7 +80,7 @@ FileIsSameDialog::FileIsSameDialog(QWidget *parent, INTERNALTYPEPATH fileInfo,
         #endif
         const uint64_t size=source_statbuf.st_size;
 #endif
-        ui->label_content_size->setText(QString::fromStdString(facilityEngine->sizeToString(size)));
+        ui->label_content_size->setText(QString::fromStdString(facilityEngine->sizeToString((double)size)));
         ui->label_content_size->setVisible(true);
         if(ULTRACOPIER_PLUGIN_MINIMALYEAR_TIMESTAMPS<mdate)
         {

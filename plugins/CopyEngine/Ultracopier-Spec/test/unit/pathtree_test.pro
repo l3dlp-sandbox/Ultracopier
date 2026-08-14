@@ -20,3 +20,6 @@ SOURCES += $$PWD/pathtree_test.cpp \
 HEADERS += $$SPEC/PathTree.h
 # WIDESTRING (std::wstring) is toggled by the caller: the harness builds this .pro once
 # plain (std::string) and once with DEFINES+=WIDESTRING (std::wstring).
+
+# Same warning set as other-pro/ultracopier-core.pro.
+QMAKE_CXXFLAGS += -Wall -Wextra -Wconversion

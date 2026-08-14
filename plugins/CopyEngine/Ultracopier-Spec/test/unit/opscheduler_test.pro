@@ -8,3 +8,6 @@ TEMPLATE  = app
 TARGET    = opscheduler_test
 SOURCES  += $$PWD/opscheduler_test.cpp
 HEADERS  += $$PWD/../../pipeline/OpScheduler.h
+
+# Same warning set as other-pro/ultracopier-core.pro.
+QMAKE_CXXFLAGS += -Wall -Wextra -Wconversion

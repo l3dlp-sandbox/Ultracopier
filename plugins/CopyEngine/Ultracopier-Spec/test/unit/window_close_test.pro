@@ -29,3 +29,6 @@ FORMS += $$OXY/interface.ui $$OXY/themesOptions.ui
 
 RESOURCES += $$OXY/interfaceResources.qrc \
     $$OXY/interfaceResources_unix.qrc $$OXY/interfaceResources_windows.qrc
+
+# Same warning set as other-pro/ultracopier-core.pro.
+QMAKE_CXXFLAGS += -Wall -Wextra -Wconversion

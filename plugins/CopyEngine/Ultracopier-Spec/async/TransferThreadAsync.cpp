@@ -1168,7 +1168,13 @@ void TransferThreadAsync::checkIfAllIsClosedAndDoOperations()
         const bool copyFailed = stopIt || needSkip || readError || writeError || fileContentError || !postOpOk;
         if(!copyFailed)
         {
+            // The braces are load-bearing: without them the else below binds to the inner
+            // `if(!unlink(source))` and not to this if, so the "refusing to remove source"
+            // message came out exactly when the source HAD just been removed, while the
+            // case it was written for (destination missing / source==destination) logged
+            // nothing at all. Control flow was unaffected — both branches only log.
             if(exists(destination) && is_file(source) && source!=destination)
+            {
                 if(!unlink(source))
                     ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+"] move and unable to remove: "+
                                              TransferThread::internalStringTostring(source)+std::string(" ")+
@@ -1178,6 +1184,7 @@ void TransferThreadAsync::checkIfAllIsClosedAndDoOperations()
                                              strerror(errno)
                              #endif
                                              );
+            }
             else
                 ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+"] move: destination missing or source==destination, refusing to remove source: "+
                                          TransferThread::internalStringTostring(source));

@@ -27,14 +27,14 @@ DiskSpace::DiskSpace(FacilityInterface * facilityEngine,std::vector<Diskspace> l
     ui->setupUi(this);
     ok=false;
     int index=0;
-    int size=list.size();
+    int size=(int)list.size();
     QString drives;
     while(index<size)
     {
         drives+=tr("Drives %1 have %2 available but need %3")
                 .arg(QString::fromStdString(list.at(index).drive))
-                .arg(QString::fromStdString(facilityEngine->sizeToString(list.at(index).freeSpace)))
-                .arg(QString::fromStdString(facilityEngine->sizeToString(list.at(index).requiredSpace)));
+                .arg(QString::fromStdString(facilityEngine->sizeToString((double)list.at(index).freeSpace)))
+                .arg(QString::fromStdString(facilityEngine->sizeToString((double)list.at(index).requiredSpace)));
         drives+=QStringLiteral("<br />");
         index++;
     }

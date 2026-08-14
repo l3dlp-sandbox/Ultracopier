@@ -1111,9 +1111,12 @@ void OptionDialog::on_portable_toggled(bool)
     QString settingsFilePath=QString::fromStdString(ResourcesManager::resourcesManager->getWritablePath());
     if(portable)
     {
-        QFile file(settingsFilePath+"/Ultracopier.conf");
-        file.open(QIODevice::ReadWrite);
-        file.close();
+        const QString portableConf=settingsFilePath+"/Ultracopier.conf";
+        QFile file(portableConf);
+        if(file.open(QIODevice::ReadWrite))
+            file.close();
+        else
+            ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"unable to create the portable settings file "+portableConf.toStdString()+": "+file.errorString().toStdString());
     }
     else
         QFile::remove(settingsFilePath+"/Ultracopier.conf");

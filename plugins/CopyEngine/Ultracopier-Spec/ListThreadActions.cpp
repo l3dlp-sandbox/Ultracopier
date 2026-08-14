@@ -15,7 +15,7 @@ void ListThread::pause()
     }
     putInPause=true;
     int index=0;
-    int loop_sub_size_transfer_thread_search=transferThreadList.size();
+    int loop_sub_size_transfer_thread_search=(int)transferThreadList.size();
     while(index<loop_sub_size_transfer_thread_search)
     {
         transferThreadList.at(index)->pause();
@@ -40,7 +40,7 @@ void ListThread::resume()
     startGeneralTransfer();
     doNewActions_start_transfer();
     int index=0;
-    int loop_sub_size_transfer_thread_search=transferThreadList.size();
+    int loop_sub_size_transfer_thread_search=(int)transferThreadList.size();
     while(index<loop_sub_size_transfer_thread_search)
     {
         transferThreadList.at(index)->resume();
@@ -61,7 +61,7 @@ void ListThread::skip(const uint64_t &id)
 bool ListThread::skipInternal(const uint64_t &id)
 {
     int index=0;
-    int loop_sub_size_transfer_thread_search=transferThreadList.size();
+    int loop_sub_size_transfer_thread_search=(int)transferThreadList.size();
     while(index<loop_sub_size_transfer_thread_search)
     {
         if(transferThreadList.at(index)->transferId==id)
@@ -113,7 +113,7 @@ void ListThread::cancel()
     }
     stopIt=true;
     int index=0;
-    int loop_size=transferThreadList.size();
+    int loop_size=(int)transferThreadList.size();
     while(index<loop_size)
     {
         transferThreadList.at(index)->stop();
@@ -121,7 +121,7 @@ void ListThread::cancel()
         index++;
     }
     index=0;
-    loop_size=scanFileOrFolderThreadsPool.size();
+    loop_size=(int)scanFileOrFolderThreadsPool.size();
     while(index<loop_size)
     {
         scanFileOrFolderThreadsPool.at(index)->stop();

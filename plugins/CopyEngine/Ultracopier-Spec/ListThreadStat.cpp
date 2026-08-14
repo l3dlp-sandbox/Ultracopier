@@ -109,7 +109,7 @@ void ListThread::timedUpdateDebugDialog()
 int ListThread::getNumberOfTranferRuning() const
 {
     int numberOfTranferRuning=0;
-    const int &loop_size=transferThreadList.size();
+    const int &loop_size=(int)transferThreadList.size();
     //lunch the transfer in WaitForTheTransfer
     int int_for_loop=0;
     while(int_for_loop<loop_size)
@@ -149,7 +149,7 @@ void ListThread::sendProgression()
     oversize=0;
     currentProgression=0;
     int int_for_loop=0;
-    const int &loop_size=transferThreadList.size();
+    const int &loop_size=(int)transferThreadList.size();
     while(int_for_loop<loop_size)
     {
         TransferThreadImpl * temp_transfer_thread=transferThreadList.at(int_for_loop);

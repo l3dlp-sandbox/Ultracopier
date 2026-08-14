@@ -8,3 +8,6 @@ TEMPLATE  = app
 TARGET    = watermark_test
 SOURCES  += $$PWD/watermark_test.cpp
 HEADERS  += $$PWD/../../pipeline/ContiguousWatermark.h
+
+# Same warning set as other-pro/ultracopier-core.pro.
+QMAKE_CXXFLAGS += -Wall -Wextra -Wconversion

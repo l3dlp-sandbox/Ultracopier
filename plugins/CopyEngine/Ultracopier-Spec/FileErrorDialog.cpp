@@ -83,7 +83,7 @@ FileErrorDialog::FileErrorDialog(QWidget *parent, INTERNALTYPEPATH fileInfo, std
                 folder=folder.substr(0,38)+"..."+folder.substr(folder.size()-38);
             ui->label_content_folder->setText(QString::fromStdString(FSabsolutePath(TransferThread::internalStringTostring(fileInfo))));
         }
-        ui->label_content_size->setText(QString::fromStdString(facilityEngine->sizeToString(size)));
+        ui->label_content_size->setText(QString::fromStdString(facilityEngine->sizeToString((double)size)));
         if(ULTRACOPIER_PLUGIN_MINIMALYEAR_TIMESTAMPS<mdate)
         {
             ui->label_modified->setVisible(true);

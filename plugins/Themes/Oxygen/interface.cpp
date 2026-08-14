@@ -152,7 +152,7 @@ Themes::Themes(const bool &alwaysOnTop,
     menu=new QMenu(this);
     ui->add->setMenu(menu);
     ui->interfaceLayout->setSpacing(uiOptions->generalSpacing->value());
-    const quint8 &margin=uiOptions->generalMargin->value();
+    const quint8 margin=(quint8)uiOptions->generalMargin->value();//QSpinBox with no explicit range: 0..99
     ui->interfaceLayout->setContentsMargins(margin, margin, margin, margin);
 
     //connect the options
@@ -455,10 +455,10 @@ void Themes::updateSysTrayIcon()
     }
     quint64 currentNew=currentSize*100;
     //update systray icon
-    quint16 getVarProgression=currentNew/totalSize;
+    quint16 getVarProgression=(quint16)(currentNew/totalSize);//currentSize*100/totalSize, so 0..100
     if(getOldProgression!=getVarProgression)
     {
-        getOldProgression=getVarProgression;
+        getOldProgression=(uint8_t)getVarProgression;//0..100; 200 is the not-set sentinel
         sysTrayIcon->setIcon(dynaIcon(getVarProgression));
     }
 }
@@ -470,8 +470,8 @@ void Themes::updateOverallInformation()
     ui->overall->setText(tr("File %1/%2, size: %3/%4")
                          .arg(currentFile+uiOptions->fileProgression->currentIndex())
                          .arg(totalFile)
-                         .arg(QString::fromStdString(facilityEngine->sizeToString(currentSize)))
-                         .arg(QString::fromStdString(facilityEngine->sizeToString(totalSize)))
+                         .arg(QString::fromStdString(facilityEngine->sizeToString((double)currentSize)))
+                         .arg(QString::fromStdString(facilityEngine->sizeToString((double)totalSize)))
                          );
 }
 
@@ -530,10 +530,10 @@ void Themes::actionInProgess(const Ultracopier::EngineActionInProgress &action)
 stat = status_stopped;
                 if(durationStarted)
                 {
-                    Ultracopier::TimeDecomposition time=facilityEngine->secondsToTimeDecomposition(
+                    Ultracopier::TimeDecomposition time=facilityEngine->secondsToTimeDecomposition((uint32_t)(
                                 (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()-
                                 duration)
-                                /1000);
+                                /1000));//elapsed transfer time in seconds
                     ui->labelTimeRemaining->setText(QStringLiteral("<html><body style=\"white-space:nowrap;\">")+
                                                     QString::fromStdString(facilityEngine->translateText("Completed in %1")).arg(
                                                         QString::number(time.hour)+QStringLiteral(":")+
@@ -599,13 +599,13 @@ void Themes::detectedSpeed(const uint64_t &speed)//in byte per seconds
         if(tempSpeed>(quint64)ui->progressBarCurrentSpeed->maximum())
         {
             //ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"set max speed to: "+std::to_string(tempSpeed));
-            ui->progressBarCurrentSpeed->setMaximum(tempSpeed);
+            ui->progressBarCurrentSpeed->setMaximum((int)tempSpeed);
         }
-        ui->progressBarCurrentSpeed->setValue(tempSpeed);
-        ui->progressBarCurrentSpeed->setFormat(QString::fromStdString(facilityEngine->speedToString(speed)));
+        ui->progressBarCurrentSpeed->setValue((int)tempSpeed);
+        ui->progressBarCurrentSpeed->setFormat(QString::fromStdString(facilityEngine->speedToString((double)speed)));
     }
     else
-        ui->currentSpeed->setText(QString::fromStdString(facilityEngine->speedToString(speed)));
+        ui->currentSpeed->setText(QString::fromStdString(facilityEngine->speedToString((double)speed)));
 }
 
 void Themes::remainingTime(const int &remainingSeconds)
@@ -671,7 +671,7 @@ void Themes::setGeneralProgression(const uint64_t &current,const uint64_t &total
     totalSize=total;
     if(total>0)
     {
-        int newIndicator=((double)current/total)*65535;
+        int newIndicator=(int)(((double)current/(double)total)*65535);
         ui->progressBar_all->setValue(newIndicator);
     }
     else
@@ -804,8 +804,8 @@ void Themes::updateCurrentFileInformation()
             {
                 if(transfertItem.progressBar_read!=transfertItem.progressBar_write)
                 {
-                    float permilleread=round((float)transfertItem.progressBar_read/65535*1000)/1000;
-                    float permillewrite=permilleread-0.001;
+                    float permilleread=(float)round((float)transfertItem.progressBar_read/65535*1000)/1000;
+                    float permillewrite=permilleread-0.001f;
                     ui->progressBar_file->setStyleSheet(QStringLiteral("QProgressBar{border: 1px solid grey;text-align: center;background-color: qlineargradient(spread:pad, x1:%1, y1:0, x2:%2, y2:0, stop:0 %3, stop:1 %4);}QProgressBar::chunk{background-color:%5;}")
                         .arg(permilleread)
                         .arg(permillewrite)
@@ -865,7 +865,7 @@ void Themes::on_putOnTop_clicked()
     selectedItems=selectionModel->selectedRows();
     std::vector<uint64_t> ids;
     int index=0;
-    const int &loop_size=selectedItems.size();
+    const int &loop_size=(int)selectedItems.size();
     while(index<loop_size)
     {
         ids.push_back(transferModel.data(selectedItems.at(index),Qt::UserRole).toULongLong());
@@ -881,7 +881,7 @@ void Themes::on_pushUp_clicked()
     selectedItems=selectionModel->selectedRows();
     std::vector<uint64_t> ids;
     int index=0;
-    const int &loop_size=selectedItems.size();
+    const int &loop_size=(int)selectedItems.size();
     while(index<loop_size)
     {
         ids.push_back(transferModel.data(selectedItems.at(index),Qt::UserRole).toULongLong());
@@ -897,7 +897,7 @@ void Themes::on_pushDown_clicked()
     selectedItems=selectionModel->selectedRows();
     std::vector<uint64_t> ids;
     int index=0;
-    const int &loop_size=selectedItems.size();
+    const int &loop_size=(int)selectedItems.size();
     while(index<loop_size)
     {
         ids.push_back(transferModel.data(selectedItems.at(index),Qt::UserRole).toULongLong());
@@ -913,7 +913,7 @@ void Themes::on_putOnBottom_clicked()
     selectedItems=selectionModel->selectedRows();
     std::vector<uint64_t> ids;
     int index=0;
-    const int &loop_size=selectedItems.size();
+    const int &loop_size=(int)selectedItems.size();
     while(index<loop_size)
     {
         ids.push_back(transferModel.data(selectedItems.at(index),Qt::UserRole).toULongLong());
@@ -929,7 +929,7 @@ void Themes::on_del_clicked()
     selectedItems=selectionModel->selectedRows();
     std::vector<uint64_t> ids;
     int index=0;
-    const int &loop_size=selectedItems.size();
+    const int &loop_size=(int)selectedItems.size();
     while(index<loop_size)
     {
         ids.push_back(transferModel.data(selectedItems.at(index),Qt::UserRole).toULongLong());
@@ -1019,7 +1019,7 @@ void Themes::uigeneralSpacing()
 void Themes::uigeneralMargin()
 {
     ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"emit uigeneralMargin"+std::to_string(uiOptions->generalMargin->value()));
-    const quint8 &margin=uiOptions->generalMargin->value();
+    const quint8 margin=(quint8)uiOptions->generalMargin->value();//QSpinBox with no explicit range: 0..99
     ui->interfaceLayout->setContentsMargins(margin, margin, margin, margin);
 }
 
@@ -1572,13 +1572,13 @@ void Themes::updateTitle()
     if(uiOptions->showProgressionInTheTitle->isChecked() && totalSize>0)
     {
         if(!modeIsForced)
-            this->setWindowTitle(tr("%1 %2% of %3").arg(QString::fromStdString(facilityEngine->translateText("Transfer"))).arg((currentSize*100)/totalSize).arg(QString::fromStdString(facilityEngine->sizeToString(totalSize)))+QStringLiteral(" - ")+QString::fromStdString(facilityEngine->softwareName()));
+            this->setWindowTitle(tr("%1 %2% of %3").arg(QString::fromStdString(facilityEngine->translateText("Transfer"))).arg((currentSize*100)/totalSize).arg(QString::fromStdString(facilityEngine->sizeToString((double)totalSize)))+QStringLiteral(" - ")+QString::fromStdString(facilityEngine->softwareName()));
         else
         {
             if(mode==Ultracopier::Copy)
-                this->setWindowTitle(tr("%1 %2% of %3").arg(QString::fromStdString(facilityEngine->translateText("Copy"))).arg((currentSize*100)/totalSize).arg(QString::fromStdString(facilityEngine->sizeToString(totalSize)))+QStringLiteral(" - ")+QString::fromStdString(facilityEngine->softwareName()));
+                this->setWindowTitle(tr("%1 %2% of %3").arg(QString::fromStdString(facilityEngine->translateText("Copy"))).arg((currentSize*100)/totalSize).arg(QString::fromStdString(facilityEngine->sizeToString((double)totalSize)))+QStringLiteral(" - ")+QString::fromStdString(facilityEngine->softwareName()));
             else
-                this->setWindowTitle(tr("%1 %2% of %3").arg(QString::fromStdString(facilityEngine->translateText("Move"))).arg((currentSize*100)/totalSize).arg(QString::fromStdString(facilityEngine->sizeToString(totalSize)))+QStringLiteral(" - ")+QString::fromStdString(facilityEngine->softwareName()));
+                this->setWindowTitle(tr("%1 %2% of %3").arg(QString::fromStdString(facilityEngine->translateText("Move"))).arg((currentSize*100)/totalSize).arg(QString::fromStdString(facilityEngine->sizeToString((double)totalSize)))+QStringLiteral(" - ")+QString::fromStdString(facilityEngine->softwareName()));
         }
     }
     else
@@ -1641,7 +1641,7 @@ QIcon Themes::dynaIcon(int percent,std::string text) const
         #endif
 
         //preprocessing the calcul
-        quint8 bottomPixel=(percent*imageSize)/100;
+        quint8 bottomPixel=(quint8)((percent*imageSize)/100);//percent is 0..100, imageSize 16 or 22
         quint8 topPixel=imageSize-bottomPixel;
 
         //top image

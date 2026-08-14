@@ -1168,6 +1168,8 @@ bool TransferThread::statSourceCachedWin(const bool withSecurity)
 bool TransferThread::readSourceFileDateTime(const INTERNALTYPEPATH &source)
 {
     ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"["+std::to_string(id)+"] readFileDateTime("+TransferThread::internalStringTostring(source)+")");
+    //source is only read by the traces, which compile out in a no-debug build
+    Q_UNUSED(source);
     /** Why not do it with Qt? Because it not support setModificationTime(), and get the time with Qt, that's mean use local time where in C is UTC time */
     #ifdef Q_OS_UNIX
         // Use the per-file cached stat(source) (shared with permissions) instead

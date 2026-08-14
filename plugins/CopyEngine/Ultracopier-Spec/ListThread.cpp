@@ -135,7 +135,7 @@ ListThread::ListThread(FacilityInterface * facilityInterface) :
     #endif
     #if !defined(ULTRACOPIER_PLUGIN_IO_URING) && !defined(ULTRACOPIER_PLUGIN_WINIOCP)
     if(MBMem<1024)
-        WriteThread::numberOfBlock=4+MBMem*0.12;
+        WriteThread::numberOfBlock=(unsigned int)(4+(double)MBMem*0.12);//deliberate truncation
     else
         WriteThread::numberOfBlock=ULTRACOPIER_PLUGIN_DEFAULT_PARALLEL_NUMBER_OF_BLOCK;
     #endif
@@ -772,7 +772,7 @@ void ListThread::realByteTransfered()
     totalRealByteTransfered=bytesTransfered;
     #endif
     int index=0;
-    int loop_sub_size_transfer_thread_search=transferThreadList.size();
+    int loop_sub_size_transfer_thread_search=(int)transferThreadList.size();
     while(index<loop_sub_size_transfer_thread_search)
     {
         const TransferThreadImpl * thread=transferThreadList.at(index);
@@ -792,7 +792,7 @@ void ListThread::checkIfReadyToCancel()
     if(!stopIt)
         return;
     int index=0;
-    int loop_size=transferThreadList.size();
+    int loop_size=(int)transferThreadList.size();
     while(index<loop_size)
     {
         if(transferThreadList.at(index)!=NULL)
@@ -820,7 +820,7 @@ void ListThread::checkIfReadyToCancel()
             delete doomedWriteFileListMutex;
             transferThreadList[index]=NULL;
             transferThreadList.erase(transferThreadList.cbegin()+index);
-            loop_size=transferThreadList.size();
+            loop_size=(int)transferThreadList.size();
             index--;
         }
         index++;
@@ -965,8 +965,8 @@ void ListThread::syncTransferList_internal()
     //full resync emits position-based actions; flush tombstones so the loop sees a dense list
     compactActionToDoListTransfer();
     TransferThreadImpl *transferThread;
-    const int &loop_size=actionToDoListTransfer.size();
-    int loop_sub_size=transferThreadList.size();
+    const int &loop_size=(int)actionToDoListTransfer.size();
+    int loop_sub_size=(int)transferThreadList.size();
     //this loop to have at max inodeThreads*inodeThreads, not inodeThreads*transferThreadList.size()
     int int_for_internal_loop;
     for(int int_for_loop=0; int_for_loop<loop_size; ++int_for_loop) {
@@ -1152,7 +1152,7 @@ void ListThread::doNewActions_start_transfer()
     if(stopIt || putInPause)
         return;
     int numberOfTranferRuning=getNumberOfTranferRuning();
-    const int &loop_size=transferThreadList.size();
+    const int &loop_size=(int)transferThreadList.size();
     //lunch the transfer in WaitForTheTransfer
     //high priority
     int int_for_loop=0;
@@ -1237,9 +1237,9 @@ void ListThread::doNewActions_inode_manipulation()
     int int_for_loop=0;
     int int_for_internal_loop=0;
     int int_for_transfer_thread_search=0;
-    actionToDoListTransfer_count=actionToDoListTransfer.size();
-    actionToDoListInode_count=actionToDoListInode.size();
-    int loop_sub_size_transfer_thread_search=transferThreadList.size();
+    actionToDoListTransfer_count=(int)actionToDoListTransfer.size();
+    actionToDoListInode_count=(int)actionToDoListInode.size();
+    int loop_sub_size_transfer_thread_search=(int)transferThreadList.size();
     //search the next transfer action to do
     while(int_for_loop<actionToDoListTransfer_count)
     {
@@ -1465,7 +1465,7 @@ void ListThread::set_updateMount()
 void ListThread::mkPathFirstFolderFinish()
 {
     int int_for_loop=0;
-    const int &loop_size=actionToDoListInode.size();
+    const int &loop_size=(int)actionToDoListInode.size();
     while(int_for_loop<loop_size)
     {
         const ActionToDoInode &actionToDoInode=actionToDoListInode.at(int_for_loop);
@@ -1785,7 +1785,7 @@ void ListThread::createTransferThread()
 void ListThread::deleteTransferThread()
 {
     ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Notice,"start");
-    int loop_size=transferThreadList.size();
+    int loop_size=(int)transferThreadList.size();
     if(loop_size>inodeThreads)
     {
         int index=0;

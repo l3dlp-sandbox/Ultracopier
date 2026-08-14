@@ -40,3 +40,6 @@ HEADERS += \
     ../../plugins/CopyEngine/Ultracopier/RmPath.h \
     copyEngineUnitTester.h \
     copyEngine.h
+
+# Same warning set as other-pro/ultracopier-core.pro.
+QMAKE_CXXFLAGS += -Wall -Wextra -Wconversion

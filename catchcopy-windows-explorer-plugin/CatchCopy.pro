@@ -47,3 +47,6 @@ SOURCES += \
     DDShellExt.cpp \
     ClassFactory.cpp \
     CatchCopy.cpp
+
+# Same warning set as other-pro/ultracopier-core.pro.
+QMAKE_CXXFLAGS += -Wall -Wextra -Wconversion
