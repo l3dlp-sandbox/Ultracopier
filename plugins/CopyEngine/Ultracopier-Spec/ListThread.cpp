@@ -122,18 +122,21 @@ ListThread::ListThread(FacilityInterface * facilityInterface) :
     emit askNewTransferThread();
     mkpathTransfer.release();
 
+    //only the thread backend sizes its write queue from the RAM: probe inside the same guard, else
+    //the io_uring/IOCP builds pay the syscall for a value nothing reads
+    #if !defined(ULTRACOPIER_PLUGIN_IO_URING) && !defined(ULTRACOPIER_PLUGIN_WINIOCP)
     int64_t MBMem=100;
     #ifdef Q_OS_WIN32
     MEMORYSTATUSEX memoryStatus;
+    memoryStatus.dwLength=sizeof(memoryStatus);//mandatory, GlobalMemoryStatusEx() fails without it
     if(GlobalMemoryStatusEx(&memoryStatus))
-        MBMem=memoryStatus.ullTotalPhys/1024;
+        MBMem=(int64_t)(memoryStatus.ullTotalPhys/1024/1024);
     #endif
     #ifdef Q_OS_LINUX
     struct sysinfo info;
     if(sysinfo(&info)==0)
-        MBMem=info.totalhigh*info.mem_unit/1024/1024;
+        MBMem=(int64_t)((uint64_t)info.totalram*info.mem_unit/1024/1024);//totalram, totalhigh is 0 on 64Bits
     #endif
-    #if !defined(ULTRACOPIER_PLUGIN_IO_URING) && !defined(ULTRACOPIER_PLUGIN_WINIOCP)
     if(MBMem<1024)
         WriteThread::numberOfBlock=(unsigned int)(4+(double)MBMem*0.12);//deliberate truncation
     else

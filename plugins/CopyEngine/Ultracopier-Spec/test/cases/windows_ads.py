@@ -44,12 +44,10 @@ def run(backends=None, memcheck=H.NONE) -> bool:
         return True
     tmp = tmp_lines[0].strip()
     src_name = f"ads_test_{uuid.uuid4().hex[:8]}"
-    dest_name = f"ads_test_dest_{uuid.uuid4().hex[:8]}"
     src = f"{tmp}\\{src_name}"
-    dest = f"{tmp}\\{dest_name}"
-    # Clean up any leftovers.
-    box.ps(f"Remove-Item -Recurse -Force -ErrorAction SilentlyContinue '{src}'; "
-           f"Remove-Item -Recurse -Force -ErrorAction SilentlyContinue '{dest}'")
+    # No dest of our own: run_windows owns the sandbox it copies into (base\src, base\dst),
+    # so the assertions run through post_verify against the destination it actually used.
+    box.ps(f"Remove-Item -Recurse -Force -ErrorAction SilentlyContinue '{src}'")
     # Create source directory with a normal file and a file with ADS.
     box.ps(f"New-Item -ItemType Directory -Path '{src}' | Out-Null")
     box.ps(f"Set-Content -Path '{src}\\normal.txt' -Value 'hello world'")
@@ -61,80 +59,65 @@ def run(backends=None, memcheck=H.NONE) -> bool:
     box.ps(f"Set-Content -Path '{src}\\sub\\deep.txt' -Value 'deep default'")
     box.ps(f"Set-Content -Path '{src}\\sub\\deep.txt:extra' -Value 'deep extra'")
 
-    # Run ultracopier copy via winlane.
-    # We'll use winlane.run_windows directly.
-    from lib.winlane import run_windows
-    result = run_windows(
-        mode="cp",
-        sources_local=[src],
-        cfg=cfg,
+    # The source tree lives ON the box (an ADS cannot exist on a Linux filesystem), so it is
+    # declared with source_on_box. Passing a Windows path in sources_local -- as this case used
+    # to -- made run_windows tar it on the LINUX side: "tar: : Cannot open: No such file or
+    # directory", an infrastructure failure that looked like an engine failure.
+    from lib import winlane
+
+    def pv(box_, dest, srcs):
+        copied = winlane.win_join(dest, src_name)
+        problems = []
+
+        def default_stream(rel, expected):
+            path = winlane.win_join(copied, rel)
+            out = box_.ps(f"Get-Content -Raw -LiteralPath '{path}' "
+                          f"-ErrorAction SilentlyContinue").stdout.splitlines()
+            if not out or out[0].strip() != expected:
+                problems.append(f"{rel}: default stream {out[:1]} != {expected!r}")
+
+        default_stream("normal.txt", "hello world")
+        default_stream("with_ads.txt", "default stream")
+        default_stream("sub\\deep.txt", "deep default")
+
+        # The ADS itself MAY be dropped -- copying only the default stream is acceptable. But a
+        # stream that IS carried over must be byte-correct: a truncated or garbled ADS would be
+        # silent corruption, which is exactly what must never pass unnoticed.
+        def ads(rel, stream, expected):
+            path = winlane.win_join(copied, rel)
+            out = box_.ps(f"(Get-Item -LiteralPath '{path}' -Stream * -ErrorAction "
+                          f"SilentlyContinue | Select-Object -ExpandProperty Stream)"
+                          ).stdout.splitlines()
+            if stream in [x.strip() for x in out if x.strip()]:
+                got = box_.ps(f"Get-Content -Raw -LiteralPath '{path}' -Stream {stream} "
+                              f"-ErrorAction SilentlyContinue").stdout.splitlines()
+                if not got or got[0].strip() != expected:
+                    problems.append(f"{rel}:{stream} preserved but WRONG: "
+                                    f"{got[:1]} != {expected!r}")
+                else:
+                    print(f"      ADS '{stream}' preserved with correct content")
+            else:
+                print(f"      ADS '{stream}' not present (accepted: default stream only)")
+
+        ads("with_ads.txt", "secret", "alternate data")
+        ads("sub\\deep.txt", "extra", "deep extra")
+        if problems:
+            return False, "ADS/default-stream problems: " + "; ".join(problems[:5])
+        return True, "default streams correct; ADS absent or intact"
+
+    result = winlane.run_windows(
+        "cp", [src], source_on_box=src, cfg=cfg,
         file_collision=H.FileCollision.OVERWRITE,
         folder_collision=H.FolderCollision.MERGE,
-        file_error=H.FileError.SKIP,
-        folder_error=H.FolderError.SKIP,
-        keep_date=True,
-        do_right=True,
-        # (run_windows has no expect= here; ADS correctness is verified manually below)
-        mem_limit_mb=1024,
-        stay_alive_seconds=10,
+        file_error=H.FileError.SKIP, folder_error=H.FolderError.SKIP,
+        keep_date=True, do_right=True, expect=None,
+        mem_limit_mb=1024, stay_alive_seconds=10, post_verify=pv,
     )
-    if not result.ok:
-        print(f"    [iocp] FAIL: {result}")
-        # Clean up
-        box.ps(f"Remove-Item -Recurse -Force -ErrorAction SilentlyContinue '{src}'; "
-               f"Remove-Item -Recurse -Force -ErrorAction SilentlyContinue '{dest}'")
-        return False
-
-    # Verify default streams are correct.
-    ok = True
-    # normal.txt
-    out = box.ps(f"Get-Content -Raw -Path '{dest}\\normal.txt' -ErrorAction SilentlyContinue").stdout.splitlines()
-    if not out or out[0].strip() != "hello world":
-        print(f"      normal.txt mismatch: {out}")
-        ok = False
-    # with_ads.txt default stream
-    out = box.ps(f"Get-Content -Raw -Path '{dest}\\with_ads.txt' -ErrorAction SilentlyContinue").stdout.splitlines()
-    if not out or out[0].strip() != "default stream":
-        print(f"      with_ads.txt default mismatch: {out}")
-        ok = False
-    # sub\deep.txt default stream
-    out = box.ps(f"Get-Content -Raw -Path '{dest}\\sub\\deep.txt' -ErrorAction SilentlyContinue").stdout.splitlines()
-    if not out or out[0].strip() != "deep default":
-        print(f"      sub\\deep.txt default mismatch: {out}")
-        ok = False
-
-    # ADS may be missing; that's fine. If present, verify content.
-    # Use `Get-Item -Stream *` to list streams.
-    out = box.ps(f"(Get-Item '{dest}\\with_ads.txt' -Stream * | Select-Object -ExpandProperty Stream) 2>$null").stdout.splitlines()
-    streams = [s.strip() for s in out if s.strip()]
-    if "secret" in streams:
-        out = box.ps(f"Get-Content -Raw -Path '{dest}\\with_ads.txt' -Stream secret -ErrorAction SilentlyContinue").stdout.splitlines()
-        if out and out[0].strip() != "alternate data":
-            print(f"      with_ads.txt:secret mismatch: {out}")
-            ok = False
-        else:
-            print(f"      ADS 'secret' preserved")
-    else:
-        print(f"      ADS 'secret' not present (ignored)")
-
-    out = box.ps(f"(Get-Item '{dest}\\sub\\deep.txt' -Stream * | Select-Object -ExpandProperty Stream) 2>$null").stdout.splitlines()
-    streams = [s.strip() for s in out if s.strip()]
-    if "extra" in streams:
-        out = box.ps(f"Get-Content -Raw -Path '{dest}\\sub\\deep.txt' -Stream extra -ErrorAction SilentlyContinue").stdout.splitlines()
-        if out and out[0].strip() != "deep extra":
-            print(f"      sub\\deep.txt:extra mismatch: {out}")
-            ok = False
-        else:
-            print(f"      ADS 'extra' preserved")
-    else:
-        print(f"      ADS 'extra' not present (ignored)")
-
-    # Clean up
-    box.ps(f"Remove-Item -Recurse -Force -ErrorAction SilentlyContinue '{src}'; "
-           f"Remove-Item -Recurse -Force -ErrorAction SilentlyContinue '{dest}'")
-
-    print(f"    [iocp] {'PASS' if ok else 'FAIL'}")
-    return ok
+    box.ps(f"Remove-Item -Recurse -Force -ErrorAction SilentlyContinue '{src}'")
+    print(f"      [iocp] completed={result.completed} alive={result.stayed_alive} "
+          f"content={result.content_ok} mem_err={result.mem_errors} {result.notes}")
+    print(f"    [iocp] {'PASS' if result.ok else 'FAIL'}")
+    return result.ok
 
 
 if __name__ == "__main__":

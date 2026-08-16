@@ -65,3 +65,4 @@
 3.0.2.4: fix io_uring for Linux
 3.1.0.0: first version with default IOCP/io_uring
 3.1.0.1: remake macoxs build env
+3.1.0.2: more check, check more bug and improve where I'm unsure

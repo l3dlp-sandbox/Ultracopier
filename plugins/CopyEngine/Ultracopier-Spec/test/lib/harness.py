@@ -582,10 +582,20 @@ def _run_impl(backend: str, mode: str, sources, dest, *, cfg=None,
     # kill it at startup (not a real OOM). systemd-run --scope -pMemoryMax caps *RSS* and
     # the kernel OOM-kills + logs the evidence on overshoot. If systemd-run is missing we do
     # NOT fake it with ulimit -v -- the soft RSS monitor in the loop below enforces the cap.
-    hard_capped = (shutil.which("systemd-run") is not None and memcheck not in (VALGRIND, TSAN))
+    # SANITIZE is exempt for the same reason as VALGRIND/TSAN: ASan's redzones + quarantine
+    # inflate RSS several-fold over the real engine footprint, so the budget computed from the
+    # UNinstrumented base would OOM-kill a healthy run (it did: append_midcopy). Memory on this
+    # lane is gated by ASan's own leak/error report, and the RSS budget by the memcheck=none lanes.
+    hard_capped = (shutil.which("systemd-run") is not None
+                   and memcheck not in (VALGRIND, TSAN, SANITIZE))
     if hard_capped:
         argv = ["systemd-run", "--user", "--scope", "-q",
                 f"-pMemoryMax={mem_limit_mb}M", "-pMemorySwapMax=0"] + argv
+    elif memcheck != NONE:
+        # Say so out loud: the cap was printed above but is NOT enforced on this lane, and a
+        # printed-but-unenforced number reads as coverage that does not exist.
+        print(f"    [{backend}] mem cap NOT enforced under {memcheck} "
+              f"(tool overhead is not our RSS); memory gated by its own error report")
 
     stderr_path = home / "stderr.log"
     with open(stderr_path, "wb") as ferr:
@@ -705,7 +715,7 @@ def _run_impl(backend: str, mode: str, sources, dest, *, cfg=None,
         # cgroup. Exceeding the budget IS a failure (a memory problem), not a crash.
         # Under valgrind the sampled RSS is valgrind's shadow-memory overhead (many GB), NOT ours,
         # so the cap is meaningless there -- valgrind's own leak/error report gates memory instead.
-        if rss > mem_limit_mb and memcheck not in (VALGRIND, TSAN):
+        if rss > mem_limit_mb and memcheck not in (VALGRIND, TSAN, SANITIZE):
             oom = True
             break
         if not pathlib.Path(f"/proc/{pid}").exists():
@@ -834,6 +844,12 @@ def _run_impl(backend: str, mode: str, sources, dest, *, cfg=None,
     notes = f"peak_rss={peak}MB cap={mem_limit_mb}MB hard_cgroup_cap={hard_capped}"
     if hung_reason:
         notes += f"\nHUNG: {hung_reason}; engine_alive_at_exit={engine_alive_at_exit}"
+    # The loop only consults the kernel log on the "process really exited" branch, so a run that
+    # ended any other way (hang ceiling, incomplete) could carry oom=False while the kernel had in
+    # fact OOM-killed ultracopier -- the evidence dump below then contradicted the verdict. Ask
+    # once more here: this can only ADD detection, never mask a failure.
+    if not oom and (hung_reason or not completed):
+        oom = _dmesg_oom(started)
     problem = (oom or not completed or (completed and not stayed_alive)
                or (exit_code not in (None, 0)))
     if problem:

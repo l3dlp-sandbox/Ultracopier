@@ -77,36 +77,36 @@
         <translation>قائمة التحريك</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1380"/>
+        <location filename="../../interface.cpp" line="1383"/>
         <source>Don&apos;t close if errors are found</source>
         <translation>لا تغلق إذا تم العثور على أخطاء</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1381"/>
+        <location filename="../../interface.cpp" line="1384"/>
         <source>Never close</source>
         <translation>لا تغلق</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1382"/>
+        <location filename="../../interface.cpp" line="1385"/>
         <source>Always close</source>
         <translation>إغلاق دائما</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1384"/>
+        <location filename="../../interface.cpp" line="1387"/>
         <source>File Name, 0KB</source>
         <translation>اسم الملف ، 0KB</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1595"/>
-        <location filename="../../interface.cpp" line="1607"/>
-        <location filename="../../interface.cpp" line="1619"/>
+        <location filename="../../interface.cpp" line="1598"/>
+        <location filename="../../interface.cpp" line="1610"/>
+        <location filename="../../interface.cpp" line="1622"/>
         <source>Select a color</source>
         <translation>تحديد لون</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1707"/>
-        <location filename="../../interface.cpp" line="1718"/>
-        <location filename="../../interface.cpp" line="1727"/>
+        <location filename="../../interface.cpp" line="1710"/>
+        <location filename="../../interface.cpp" line="1721"/>
+        <location filename="../../interface.cpp" line="1730"/>
         <source>%1 %2% of %3 into %4 files</source>
         <translation>%1 %2% من %3 إلى ملفات %4</translation>
     </message>

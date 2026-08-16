@@ -317,7 +317,14 @@ bool TransferThreadPipelined::tryNativeCopy()
     // native_copy option: copy via the OS instead of the read/write pipeline. Mirrors the
     // async backend: CopyFileExW on Windows, copy_file_range on Linux. Returns false when
     // native_copy is off or the OS path is unsupported (then the caller uses the pipeline).
-    if(!native_copy)
+    //
+    // ALSO refuse it when the user asked for a checksum: the OS copies the bytes itself, so the
+    // engine never sees them and runChecksumVerify() -- which lives further down the pipelined
+    // path -- is never reached. That silently turned the integrity check into a no-op for every
+    // file taking this route, and on Windows native_copy is ON by default, so simply enabling
+    // "checksum" verified nothing. Integrity beats the SMB copy-offload speedup for the users who
+    // explicitly asked to have their copies verified; everyone else keeps the fast path.
+    if(!native_copy || transferChecksum)
         return false;
     bool successFull=false;
     #ifdef Q_OS_WIN32

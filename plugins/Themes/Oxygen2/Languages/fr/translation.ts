@@ -69,7 +69,7 @@
         <translation>Liste de déplacements</translation>
     </message>
     <message>
-        <location line="+517"/>
+        <location line="+520"/>
         <source>Don&apos;t close if errors are found</source>
         <translation>Garder ouvert s&apos;il y a des erreurs</translation>
     </message>

@@ -39,17 +39,17 @@
         <translation>Datei %1/%2, Größe:%3/%4</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1382"/>
+        <location filename="../../interface.cpp" line="1385"/>
         <source>Always close</source>
         <translation>Immer schließen</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1384"/>
+        <location filename="../../interface.cpp" line="1387"/>
         <source>File Name, 0KB</source>
         <translation>Dateiname, 0KB</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1381"/>
+        <location filename="../../interface.cpp" line="1384"/>
         <source>Never close</source>
         <translation>Niemals schließen</translation>
     </message>
@@ -84,21 +84,21 @@
         <translation>Verschieben Liste</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1380"/>
+        <location filename="../../interface.cpp" line="1383"/>
         <source>Don&apos;t close if errors are found</source>
         <translation>Nicht schließen, wenn Fehler aufgetreten sind</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1595"/>
-        <location filename="../../interface.cpp" line="1607"/>
-        <location filename="../../interface.cpp" line="1619"/>
+        <location filename="../../interface.cpp" line="1598"/>
+        <location filename="../../interface.cpp" line="1610"/>
+        <location filename="../../interface.cpp" line="1622"/>
         <source>Select a color</source>
         <translation>Farbe auswählen</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1707"/>
-        <location filename="../../interface.cpp" line="1718"/>
-        <location filename="../../interface.cpp" line="1727"/>
+        <location filename="../../interface.cpp" line="1710"/>
+        <location filename="../../interface.cpp" line="1721"/>
+        <location filename="../../interface.cpp" line="1730"/>
         <source>%1 %2% of %3 into %4 files</source>
         <translation type="unfinished"></translation>
     </message>

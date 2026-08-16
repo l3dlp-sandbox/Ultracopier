@@ -16,7 +16,7 @@ IOCP note: cases/iocp_parity.py runs the Windows IOCP backend via SSH (winlane).
 (clean PASS) when [windows] host is empty in config.ini, so CI without the laptop still passes.
 Run `python3 all.py --backend iocp` to exercise ONLY the IOCP lane.
 """
-import sys, os, pathlib, importlib, argparse, time
+import sys, os, pathlib, importlib, argparse, time, fcntl
 
 TEST_DIR = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(TEST_DIR))
@@ -79,8 +79,39 @@ def _latest_case_durations(log_path):
     return out
 
 
+_SUITE_LOCK_PATH = "/tmp/uc-test-suite.lock"
+_suite_lock_fd = None
+
+
+def _take_suite_lock():
+    """Refuse to start while another suite run is live.
+
+    Two concurrent runs of this suite DESTROY each other: the reaper kills every ultracopier whose
+    environ carries ULTRACOPIER_SOCKET_SUFFIX, and that marker is a shared constant, so run B reaps
+    run A's engine mid-case. The damage is silent and misleading -- the victim case reports
+    "crash/incomplete" or hangs to the 1800s ceiling with its content already correct, which reads
+    exactly like an engine bug. An exclusive lock turns that into one clear line instead. (IOCP lane
+    runs take it too: they reap local instances at startup even though their engine runs on the box.)
+    """
+    global _suite_lock_fd
+    _suite_lock_fd = open(_SUITE_LOCK_PATH, "w")
+    try:
+        fcntl.flock(_suite_lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        print("REFUSED: another test-suite run holds " + _SUITE_LOCK_PATH + ".\n"
+              "         Concurrent runs reap each other's ultracopier instances (shared\n"
+              "         ULTRACOPIER_SOCKET_SUFFIX), which shows up as bogus hangs and\n"
+              "         'crash/incomplete' failures. Wait for it, or kill it and retry.")
+        return False
+    _suite_lock_fd.write(str(os.getpid()) + "\n")
+    _suite_lock_fd.flush()
+    return True
+
+
 def main(argv):
     args = parse_args(argv)
+    if not _take_suite_lock():
+        return 3
     available = discover()
     selected = args.cases or available
     unknown = [c for c in selected if c not in available]

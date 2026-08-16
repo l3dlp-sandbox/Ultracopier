@@ -102,75 +102,75 @@
     <name>CopyEngineFactory</name>
     <message>
         <location filename="../../CopyEngineFactory.cpp" line="62"/>
-        <location filename="../../CopyEngineFactory.cpp" line="376"/>
+        <location filename="../../CopyEngineFactory.cpp" line="395"/>
         <source>Supported only on Windows and Linux</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../CopyEngineFactory.cpp" line="512"/>
-        <location filename="../../CopyEngineFactory.cpp" line="515"/>
-        <location filename="../../CopyEngineFactory.cpp" line="520"/>
-        <location filename="../../CopyEngineFactory.cpp" line="524"/>
+        <location filename="../../CopyEngineFactory.cpp" line="531"/>
+        <location filename="../../CopyEngineFactory.cpp" line="534"/>
+        <location filename="../../CopyEngineFactory.cpp" line="539"/>
+        <location filename="../../CopyEngineFactory.cpp" line="543"/>
         <source>Ask</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../CopyEngineFactory.cpp" line="513"/>
-        <location filename="../../CopyEngineFactory.cpp" line="517"/>
-        <location filename="../../CopyEngineFactory.cpp" line="521"/>
-        <location filename="../../CopyEngineFactory.cpp" line="525"/>
+        <location filename="../../CopyEngineFactory.cpp" line="532"/>
+        <location filename="../../CopyEngineFactory.cpp" line="536"/>
+        <location filename="../../CopyEngineFactory.cpp" line="540"/>
+        <location filename="../../CopyEngineFactory.cpp" line="544"/>
         <source>Skip</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../CopyEngineFactory.cpp" line="516"/>
+        <location filename="../../CopyEngineFactory.cpp" line="535"/>
         <source>Merge</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../CopyEngineFactory.cpp" line="518"/>
-        <location filename="../../CopyEngineFactory.cpp" line="530"/>
+        <location filename="../../CopyEngineFactory.cpp" line="537"/>
+        <location filename="../../CopyEngineFactory.cpp" line="549"/>
         <source>Rename</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../CopyEngineFactory.cpp" line="522"/>
+        <location filename="../../CopyEngineFactory.cpp" line="541"/>
         <source>Put at the end</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../CopyEngineFactory.cpp" line="526"/>
+        <location filename="../../CopyEngineFactory.cpp" line="545"/>
         <source>Overwrite</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../CopyEngineFactory.cpp" line="527"/>
+        <location filename="../../CopyEngineFactory.cpp" line="546"/>
         <source>Overwrite if different</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../CopyEngineFactory.cpp" line="528"/>
+        <location filename="../../CopyEngineFactory.cpp" line="547"/>
         <source>Overwrite if newer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../CopyEngineFactory.cpp" line="529"/>
+        <location filename="../../CopyEngineFactory.cpp" line="548"/>
         <source>Overwrite if older</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../CopyEngineFactory.cpp" line="545"/>
-        <location filename="../../CopyEngineFactory.cpp" line="584"/>
+        <location filename="../../CopyEngineFactory.cpp" line="564"/>
+        <location filename="../../CopyEngineFactory.cpp" line="603"/>
         <source>Options error</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../CopyEngineFactory.cpp" line="545"/>
+        <location filename="../../CopyEngineFactory.cpp" line="564"/>
         <source>Options engine is not loaded. Unable to access the filters</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../CopyEngineFactory.cpp" line="584"/>
+        <location filename="../../CopyEngineFactory.cpp" line="603"/>
         <source>Options engine is not loaded, can&apos;t access to the filters</source>
         <translation type="unfinished"></translation>
     </message>
@@ -198,7 +198,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../DiskSpace.cpp" line="23"/>
+        <location filename="../../DiskSpace.cpp" line="34"/>
         <source>Drives %1 have %2 available but need %3</source>
         <translation type="unfinished"></translation>
     </message>
@@ -219,22 +219,22 @@
 <context>
     <name>FileExistsDialog</name>
     <message>
-        <location filename="../../FileExistsDialog.cpp" line="201"/>
+        <location filename="../../FileExistsDialog.cpp" line="213"/>
         <source>%name% - copy%suffix%</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../FileExistsDialog.cpp" line="208"/>
+        <location filename="../../FileExistsDialog.cpp" line="220"/>
         <source>%name% - copy (%number%)%suffix%</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../FileExistsDialog.cpp" line="299"/>
+        <location filename="../../FileExistsDialog.cpp" line="311"/>
         <source>Error</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../FileExistsDialog.cpp" line="299"/>
+        <location filename="../../FileExistsDialog.cpp" line="311"/>
         <source>Try rename with using special characters</source>
         <translation type="unfinished"></translation>
     </message>
@@ -242,22 +242,22 @@
 <context>
     <name>FileIsSameDialog</name>
     <message>
-        <location filename="../../FileIsSameDialog.cpp" line="145"/>
+        <location filename="../../FileIsSameDialog.cpp" line="156"/>
         <source>%name% - copy%suffix%</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../FileIsSameDialog.cpp" line="152"/>
+        <location filename="../../FileIsSameDialog.cpp" line="163"/>
         <source>%name% - copy (%number%)%suffix%</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../FileIsSameDialog.cpp" line="225"/>
+        <location filename="../../FileIsSameDialog.cpp" line="236"/>
         <source>Error</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../FileIsSameDialog.cpp" line="225"/>
+        <location filename="../../FileIsSameDialog.cpp" line="236"/>
         <source>Try rename with using special characters</source>
         <translation type="unfinished"></translation>
     </message>
@@ -404,27 +404,27 @@
 <context>
     <name>FolderExistsDialog</name>
     <message>
-        <location filename="../../FolderExistsDialog.cpp" line="91"/>
+        <location filename="../../FolderExistsDialog.cpp" line="102"/>
         <source>Folder already exists</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../FolderExistsDialog.cpp" line="172"/>
+        <location filename="../../FolderExistsDialog.cpp" line="183"/>
         <source>%name% - copy%suffix%</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../FolderExistsDialog.cpp" line="181"/>
+        <location filename="../../FolderExistsDialog.cpp" line="192"/>
         <source>%name% - copy (%number%)%suffix%</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../FolderExistsDialog.cpp" line="248"/>
+        <location filename="../../FolderExistsDialog.cpp" line="259"/>
         <source>Error</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../FolderExistsDialog.cpp" line="248"/>
+        <location filename="../../FolderExistsDialog.cpp" line="259"/>
         <source>Try rename with using special characters</source>
         <translation type="unfinished"></translation>
     </message>
@@ -595,38 +595,30 @@
 <context>
     <name>ScanFileOrFolder</name>
     <message>
-        <location filename="../../ScanFileOrFolder.cpp" line="362"/>
-        <location filename="../../ScanFileOrFolder.cpp" line="716"/>
+        <location filename="../../ScanFileOrFolder.cpp" line="382"/>
+        <location filename="../../ScanFileOrFolder.cpp" line="706"/>
         <source>Blacklisted folder</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ScanFileOrFolder.cpp" line="498"/>
-        <location filename="../../ScanFileOrFolder.cpp" line="500"/>
-        <source>%1 - copy</source>
+        <location filename="../../ScanFileOrFolder.cpp" line="529"/>
+        <location filename="../../ScanFileOrFolder.cpp" line="531"/>
+        <location filename="../../ScanFileOrFolder.cpp" line="638"/>
+        <location filename="../../ScanFileOrFolder.cpp" line="640"/>
+        <source>%name% - copy%suffix%</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ScanFileOrFolder.cpp" line="509"/>
-        <location filename="../../ScanFileOrFolder.cpp" line="511"/>
-        <source>%1 - copy (%2)</source>
+        <location filename="../../ScanFileOrFolder.cpp" line="540"/>
+        <location filename="../../ScanFileOrFolder.cpp" line="542"/>
+        <location filename="../../ScanFileOrFolder.cpp" line="649"/>
+        <location filename="../../ScanFileOrFolder.cpp" line="651"/>
+        <source>%name% - copy (%number%)%suffix%</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ScanFileOrFolder.cpp" line="622"/>
-        <location filename="../../ScanFileOrFolder.cpp" line="624"/>
-        <source>%name% - copy</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ScanFileOrFolder.cpp" line="633"/>
-        <location filename="../../ScanFileOrFolder.cpp" line="635"/>
-        <source>%name% - copy (%number%)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ScanFileOrFolder.cpp" line="726"/>
-        <location filename="../../ScanFileOrFolder.cpp" line="730"/>
+        <location filename="../../ScanFileOrFolder.cpp" line="716"/>
+        <location filename="../../ScanFileOrFolder.cpp" line="720"/>
         <source>Problem with folder read</source>
         <translation type="unfinished"></translation>
     </message>
@@ -716,35 +708,40 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../pipeline/TransferThreadPipelined.cpp" line="488"/>
+        <location filename="../../pipeline/TransferThreadPipelined.cpp" line="518"/>
         <source>Unable to create the destination folder, errno: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../pipeline/TransferThreadPipelined.cpp" line="662"/>
+        <location filename="../../pipeline/TransferThreadPipelined.cpp" line="698"/>
         <source>Checksum: unable to allocate xxh3 state</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../pipeline/TransferThreadPipelined.cpp" line="677"/>
-        <location filename="../../pipeline/TransferThreadPipelined.cpp" line="695"/>
+        <location filename="../../pipeline/TransferThreadPipelined.cpp" line="713"/>
+        <location filename="../../pipeline/TransferThreadPipelined.cpp" line="731"/>
         <source>Checksum: unable to re-open source: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../pipeline/TransferThreadPipelined.cpp" line="686"/>
-        <location filename="../../pipeline/TransferThreadPipelined.cpp" line="704"/>
+        <location filename="../../pipeline/TransferThreadPipelined.cpp" line="722"/>
+        <location filename="../../pipeline/TransferThreadPipelined.cpp" line="740"/>
         <source>Checksum: unable to re-open destination: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../pipeline/TransferThreadPipelined.cpp" line="767"/>
+        <location filename="../../pipeline/TransferThreadPipelined.cpp" line="803"/>
         <source>Checksum: read error during verify</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../pipeline/TransferThreadPipelined.cpp" line="775"/>
+        <location filename="../../pipeline/TransferThreadPipelined.cpp" line="811"/>
         <source>Checksum mismatch (xxh3-64): </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../pipeline/TransferThreadPipelined.cpp" line="870"/>
+        <source>Checksum mismatch and the corrupt destination could not be removed</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

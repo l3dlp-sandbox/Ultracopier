@@ -52,6 +52,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <cwchar>
+#include <cstdio>
 
 // =====================================================================
 // Scenario parsing -- mirror of the Linux shim's uc_parse(), wide-char aware.
@@ -66,6 +67,10 @@ enum UcVerb {
     UC_STATFAIL,     // GetFileAttributesEx fails on matching path
     UC_WFLIP,        // silent 1-byte XOR-0xFF flip at a file offset in a matching dest WriteFile
     UC_READFAIL,     // ReadFile of a matching (source) path fails ERROR_IO_DEVICE -- whole-file bad sector
+    UC_OPLOG,        // observability only: append every open/write/delete of a matching path to
+                     // C:\cc-test\trace\ops.log. Injects NO fault. Exists to answer, after a rare
+                     // failure, what the engine ACTUALLY did -- e.g. whether it ever called
+                     // DeleteFileW on a checksum-corrupt destination, or never re-read it at all.
     UC_EIO_AFTER     // ReadFile succeeds until <num> cumulative bytes for the handle, then fails -- bad
                      // sector partway in. (Whole-file readfail fails the ReadFile CALL, so it surfaces
                      // on BOTH sync and an OVERLAPPED submit -- a failed submit that does not set
@@ -97,6 +102,51 @@ static HandlePath g_handles[UC_MAX_HANDLES];
 static CRITICAL_SECTION g_handlesLock;
 static bool g_handlesLockInit = false;
 
+// --- observability (UC_OPLOG) -------------------------------------------------------------
+// Writes through pointers resolved straight from kernel32 rather than the patched IAT, so the
+// logger cannot recurse into our own CreateFileW/WriteFile detours.
+// Own typedefs: this logger sits ABOVE the hook typedefs on purpose (it must be usable from the
+// parser onwards), so it cannot borrow them.
+typedef HANDLE (WINAPI *RawCreateFileW_t)(LPCWSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES,
+                                          DWORD, DWORD, HANDLE);
+typedef BOOL   (WINAPI *RawWriteFile_t)(HANDLE, LPCVOID, DWORD, LPDWORD, LPOVERLAPPED);
+static HANDLE  g_opLog = INVALID_HANDLE_VALUE;
+static RawCreateFileW_t g_rawCreateFileW = nullptr;
+static RawWriteFile_t   g_rawWriteFile   = nullptr;
+
+static void ucLogLine(const char *op, const wchar_t *path, const char *extra)
+{
+    if (g_rawCreateFileW == nullptr) {
+        HMODULE k = GetModuleHandleW(L"kernel32.dll");
+        g_rawCreateFileW = (RawCreateFileW_t)GetProcAddress(k, "CreateFileW");
+        g_rawWriteFile   = (RawWriteFile_t)GetProcAddress(k, "WriteFile");
+    }
+    if (g_rawCreateFileW == nullptr || g_rawWriteFile == nullptr)
+        return;
+    if (g_opLog == INVALID_HANDLE_VALUE) {
+        CreateDirectoryW(L"C:\\cc-test\\trace", nullptr);
+        g_opLog = g_rawCreateFileW(L"C:\\cc-test\\trace\\ops.log", FILE_APPEND_DATA,
+                                   FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                                   OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (g_opLog == INVALID_HANDLE_VALUE)
+            return;
+    }
+    char line[1024];
+    char narrow[512];
+    int i = 0;
+    if (path) {
+        while (path[i] != L'\0' && i < (int)sizeof(narrow) - 1) { narrow[i] = (char)path[i]; i++; }
+    }
+    narrow[i] = '\0';
+    const int n = snprintf(line, sizeof(line), "%lu %lu %s %s %s\r\n",
+                              (unsigned long)GetTickCount(), (unsigned long)GetCurrentThreadId(),
+                              op, narrow, extra ? extra : "");
+    if (n > 0) {
+        DWORD put = 0;
+        g_rawWriteFile(g_opLog, line, (DWORD)n, &put, nullptr);
+    }
+}
+
 static void ucParse()
 {
     if (g_parsed)
@@ -126,6 +176,7 @@ static void ucParse()
         else if (!wcscmp(tok, L"shortwrite")) { r.verb = UC_SHORTWRITE; wcsncpy_s(r.arg, arg, _TRUNCATE); }
         else if (!wcscmp(tok, L"statfail"))   { r.verb = UC_STATFAIL;   wcsncpy_s(r.arg, arg, _TRUNCATE); }
         else if (!wcscmp(tok, L"readfail"))   { r.verb = UC_READFAIL;   wcsncpy_s(r.arg, arg, _TRUNCATE); }
+        else if (!wcscmp(tok, L"oplog"))      { r.verb = UC_OPLOG;      wcsncpy_s(r.arg, arg, _TRUNCATE); }
         else if (!wcscmp(tok, L"eio_after"))  { r.verb = UC_EIO_AFTER;  /* arg is "<substr>:<bytes>" -- split on the LAST colon */
                                                 { wchar_t *lc = wcsrchr(arg, L':');
                                                   if (lc) { *lc = L'\0'; r.num = wcstoll(lc + 1, nullptr, 10); }
@@ -295,7 +346,9 @@ typedef BOOL   (WINAPI *DeviceIoControl_t)(HANDLE, DWORD, LPVOID, DWORD, LPVOID,
                                            LPDWORD, LPOVERLAPPED);
 typedef BOOL   (WINAPI *GetFileAttributesExW_t)(LPCWSTR, GET_FILEEX_INFO_LEVELS, LPVOID);
 typedef BOOL   (WINAPI *CloseHandle_t)(HANDLE);
+typedef BOOL   (WINAPI *DeleteFileW_t)(LPCWSTR);
 
+static DeleteFileW_t            real_DeleteFileW            = nullptr;
 static CreateFileW_t            real_CreateFileW            = nullptr;
 static ReadFile_t              real_ReadFile               = nullptr;
 static WriteFile_t             real_WriteFile              = nullptr;
@@ -312,6 +365,12 @@ static HANDLE WINAPI hook_CreateFileW(LPCWSTR name, DWORD access, DWORD share,
                                       LPSECURITY_ATTRIBUTES sa, DWORD disp,
                                       DWORD flags, HANDLE tmpl)
 {
+    if (ucMatch(UC_OPLOG, name)) {
+        char extra[80];
+        snprintf(extra, sizeof(extra), "access=0x%lx disp=%lu",
+                    (unsigned long)access, (unsigned long)disp);
+        ucLogLine("OPEN", name, extra);
+    }
     if (ucMatch(UC_OPENFAIL, name)) {
         SetLastError(ERROR_ACCESS_DENIED);
         return INVALID_HANDLE_VALUE;
@@ -386,6 +445,14 @@ static BOOL WINAPI hook_WriteFile(HANDLE h, LPCVOID buf, DWORD len, LPDWORD put,
         // FULL byte count so the engine believes the write succeeded. NO GetQueuedCompletionStatus hook
         // is needed -- we corrupt the BUFFER before WriteFile, so the kernel's completion correctly
         // reports success; the flip is only caught by #25's checksum re-read of the dest.
+        if (ucMatch(UC_OPLOG, path)) {
+            char extra[96];
+            const uint64_t off = ov ? (((uint64_t)ov->OffsetHigh << 32) | (uint64_t)ov->Offset)
+                                    : ucGetWritten(h);
+            snprintf(extra, sizeof(extra), "off=%llu len=%lu",
+                        (unsigned long long)off, (unsigned long)len);
+            ucLogLine("WRITE", path, extra);
+        }
         const UcRule *wf = ucMatch(UC_WFLIP, path);
         if (wf) {
             // The file offset this write lands at: OVERLAPPED (IOCP) carries it explicitly; a sync
@@ -452,6 +519,26 @@ static BOOL WINAPI hook_CloseHandle(HANDLE h)
 }
 
 // =====================================================================
+// DeleteFileW is hooked for OBSERVABILITY ONLY (never faulted): the open question after a rare
+// write_corruption failure is whether the engine ever ASKED to delete the corrupt destination.
+// A missing DELETE line means the checksum-verify branch was not reached at all; a DELETE line
+// with ok=0 means the removal was attempted and refused (the retry-window story).
+static BOOL WINAPI hook_DeleteFileW(LPCWSTR name)
+{
+    const UcRule *lg = ucMatch(UC_OPLOG, name);
+    const BOOL ok = real_DeleteFileW ? real_DeleteFileW(name) : FALSE;
+    const DWORD err = ok ? 0 : GetLastError();
+    if (lg) {
+        char extra[64];
+        snprintf(extra, sizeof(extra), "ok=%d err=%lu", (int)(ok ? 1 : 0),
+                    (unsigned long)err);
+        ucLogLine("DELETE", name, extra);
+    }
+    if (!ok)
+        SetLastError(err);
+    return ok;
+}
+
 // Hook table + install/remove.
 // =====================================================================
 
@@ -470,6 +557,7 @@ static HookEntry g_hookTable[] = {
     { L"kernel32.dll", "DeviceIoControl",       (void*)&hook_DeviceIoControl,       (void**)&real_DeviceIoControl },
     { L"kernel32.dll", "GetFileAttributesExW",  (void*)&hook_GetFileAttributesExW,  (void**)&real_GetFileAttributesExW },
     { L"kernel32.dll", "CloseHandle",           (void*)&hook_CloseHandle,           (void**)&real_CloseHandle },
+    { L"kernel32.dll", "DeleteFileW",           (void*)&hook_DeleteFileW,           (void**)&real_DeleteFileW },
     // TODO: on some toolchains these live in kernelbase.dll, not kernel32.dll.
     //       MinHook's MH_CreateHookApi resolves the real forwarded target, so
     //       prefer MH_CreateHookApi(L"kernel32", "CreateFileW", ...) which follows

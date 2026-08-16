@@ -52,8 +52,12 @@ def run(backends=None, memcheck=H.NONE) -> bool:
     os.symlink("../b", src / "a" / "to_b")   # a/to_b -> b
     os.symlink("../a", src / "b" / "to_a")   # b/to_a -> a  => cycle a/to_b/to_a/to_b/...
 
-    all_ok = True
-    for be in backends:
+    # Go through casekit.for_backends: it drops IOCP (covered end-to-end by iocp_parity via the
+    # winlane) BEFORE any copy is attempted. Hand-rolling the loop -- as this case used to -- let
+    # harness.run() return its "skipped: IOCP via winlane" Result and then verified the content of
+    # a destination that was never produced, so the case reported a guaranteed FAIL on --backend
+    # iocp while claiming SKIP in the same breath.
+    def one(be):
         dest = K.fresh_dest(f"cycle_dest_{be}")
         copied = os.path.join(dest, os.path.basename(str(src)))
         r = H.run(be, "cp", [str(src)], dest,
@@ -68,9 +72,9 @@ def run(backends=None, memcheck=H.NONE) -> bool:
               f"mem_err={r.mem_errors}")
         if msg:
             print(f"        {msg}")
-        print(f"    [symlink_cycle:{be}] {'PASS' if ok else 'FAIL'}")
-        all_ok = all_ok and ok
-    return all_ok
+        return ok
+
+    return K.for_backends(backends, one)
 
 
 if __name__ == "__main__":

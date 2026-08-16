@@ -208,8 +208,12 @@ def win_meta(box, path: str) -> dict:
     via owner+SDDL, not an octal mode."""
     ps = (f"$ErrorActionPreference='Stop'; "
           f"$i=Get-Item -LiteralPath '{path}' -Force; "
-          f"$t=[long][System.Math]::Floor(($i.LastWriteTimeUtc - "
-          f"(Get-Date '1970-01-01 00:00:00Z')).TotalSeconds); "
+          # The epoch baseline MUST stay UTC: Get-Date '...Z' CONVERTS to local, and .NET
+          # subtracts two DateTimes on raw ticks ignoring Kind -- so a local baseline shifted
+          # every mtime we read by the box's UTC offset (+4h on a UTC-4 box; 0 only on a UTC
+          # box, which is why it stayed invisible). Guarded by cases/winlane_meta_epoch.py.
+          f"$e=New-Object DateTime(1970,1,1,0,0,0,[DateTimeKind]::Utc); "
+          f"$t=[long][System.Math]::Floor(($i.LastWriteTimeUtc - $e).TotalSeconds); "
           f"$a=Get-Acl -LiteralPath '{path}'; "
           f"Write-Output ('MTIME='+$t); "
           f"Write-Output ('OWNER='+$a.Owner); "
@@ -261,6 +265,47 @@ def run_windows(*args, **kwargs):
     except ImportError:
         return _run_windows_impl(*args, **kwargs)
 
+
+
+def _wait_io_quiet(box, pid, timeout, quiet_s=6, poll_s=1.0):
+    """Completion signal for the fault-injected runs: I/O counters stop moving for `quiet_s`.
+
+    Returns (completed, peak_rss_mb, oom, exit_code) like _wait_idle. `completed` is False on
+    timeout or if the process never moved a byte -- never asserted. Bytes must move first, so a
+    process that dies or never starts is reported as NOT completed instead of silently "done".
+    """
+    import time as _t
+    last, quiet_since, peak, moved = None, None, 0, False
+    deadline = _t.time() + timeout
+    while _t.time() < deadline:
+        r = box.ps(f"$p = Get-CimInstance Win32_Process -Filter 'ProcessId={pid}' "
+                   "-ErrorAction SilentlyContinue; "
+                   "if ($p) {{ Write-Output ('IO=' + ($p.ReadTransferCount + $p.WriteTransferCount) "
+                   "+ ';WS=' + [int]($p.WorkingSetSize/1MB)) }} else {{ Write-Output 'GONE=1' }}"
+                   .replace("{{", "{").replace("}}", "}"))
+        kv = _parse_kv(r.stdout)
+        if kv.get("GONE") == "1":
+            return moved, peak, False, None       # died: completed only if it had done real work
+        try:
+            io = int(kv.get("IO", "0"))
+            peak = max(peak, int(kv.get("WS", "0")))
+        except ValueError:
+            io = None
+        if io is not None:
+            # "moved" must be true when the process HAS done I/O, not only when we caught it
+            # changing between two polls: a copy that finishes before the first poll never shows a
+            # delta, and requiring one made this wait for the whole timeout instead of returning.
+            if io > 0:
+                moved = True
+            if last is not None and io != last:
+                quiet_since = None
+            elif last is not None and quiet_since is None:
+                quiet_since = _t.time()
+            if quiet_since is not None and moved and (_t.time() - quiet_since) >= quiet_s:
+                return True, peak, False, None
+            last = io
+        _t.sleep(poll_s)
+    return False, peak, False, None                # timeout: report it, never fake completion
 
 def _run_windows_impl(mode, sources_local, *, cfg=None,
                 file_collision=H.FileCollision.ASK,
@@ -394,12 +439,14 @@ def _run_windows_impl(mode, sources_local, *, cfg=None,
         # (5) poll for CPU-idle completion (NOT byte-count: IOCP pre-sizes dest files).
         if fs_scenario:
             # The fs_hook-injected ultracopier spins its event loop and never goes CPU-idle, so the
-            # CPU-idle detector wedges. The injection test copies a small tree that finishes quickly; wait
-            # a bounded window and let the dest-state post_verify decide. A real hang/crash still surfaces
-            # via the WER Event-1000 scan + the verify; this only changes the COMPLETION signal for the
-            # (spinning) injected process, never what is asserted.
-            time.sleep(min(30, timeout))
-            completed, peak, oom, exit_code = True, 0, False, None
+            # CPU-idle detector wedges. Watch its I/O counters instead: they move while it copies and
+            # while it re-reads for the checksum, and stop when it is genuinely finished. This
+            # replaces a fixed sleep that declared completed=True without measuring anything -- with
+            # it, a copy slower than the timer was KILLED mid-verify (a kill sets stopIt, which skips
+            # the #25 corrupt-dest removal), so the harness both truncated the run and reported it as
+            # completed. The checksum arm re-reads source+dest after copying, so it was the arm that
+            # ran out of clock.
+            completed, peak, oom, exit_code = _wait_io_quiet(box, pid, timeout)
         else:
             completed, peak, oom, exit_code = _wait_idle(box, pid, timeout, mem_limit_mb)
 

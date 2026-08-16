@@ -35,36 +35,36 @@
         <translation>Lista mozgatása</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1194"/>
+        <location filename="../../interface.cpp" line="1197"/>
         <source>Don&apos;t close if errors are found</source>
         <translation>Ne zárja be, ha hiba történik</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1195"/>
+        <location filename="../../interface.cpp" line="1198"/>
         <source>Never close</source>
         <translation>Sose zárja be</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1196"/>
+        <location filename="../../interface.cpp" line="1199"/>
         <source>Always close</source>
         <translation>Mindig zárja be</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1198"/>
+        <location filename="../../interface.cpp" line="1201"/>
         <source>File Name, 0KB</source>
         <translation>Fájlnév, 0KB</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1473"/>
-        <location filename="../../interface.cpp" line="1485"/>
-        <location filename="../../interface.cpp" line="1497"/>
+        <location filename="../../interface.cpp" line="1476"/>
+        <location filename="../../interface.cpp" line="1488"/>
+        <location filename="../../interface.cpp" line="1500"/>
         <source>Select a color</source>
         <translation>Válassz egy színt</translation>
     </message>
     <message>
-        <location filename="../../interface.cpp" line="1572"/>
-        <location filename="../../interface.cpp" line="1576"/>
-        <location filename="../../interface.cpp" line="1578"/>
+        <location filename="../../interface.cpp" line="1575"/>
+        <location filename="../../interface.cpp" line="1579"/>
+        <location filename="../../interface.cpp" line="1581"/>
         <source>%1 %2% of %3</source>
         <translation type="unfinished"></translation>
     </message>
