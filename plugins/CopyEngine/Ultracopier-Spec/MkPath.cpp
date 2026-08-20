@@ -139,11 +139,12 @@ void MkPath::internalDoThisPath()
             ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"the sources not exists: "+TransferThread::internalStringTostring(item.source));
             doTheDateTransfer=false;
         }
-        else if(ULTRACOPIER_PLUGIN_MINIMALYEAR_TIMESTAMPS>=sourceLastModified)
+        /* readFileMDateTime() returns -1 when the date could not be read; only that (or an unset
+           0 date) blocks the transfer. An OLD folder date -- e.g. the 1980 MS-DOS epoch of a
+           folder extracted from an archive -- is valid and must be reproduced, like for files. */
+        else if(sourceLastModified<=0)
         {
-            ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"the sources is older to copy the time: "+TransferThread::internalStringTostring(item.source)+
-                                     ": "+QDateTime::fromMSecsSinceEpoch((uint64_t)ULTRACOPIER_PLUGIN_MINIMALYEAR_TIMESTAMPS*(uint64_t)1000).toString("dd.MM.yyyy hh:mm:ss.zzz").toStdString()+
-                                     ">="+QDateTime::fromMSecsSinceEpoch((uint64_t)sourceLastModified*(uint64_t)1000).toString("dd.MM.yyyy hh:mm:ss.zzz").toStdString());
+            ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"the source has no modification date: "+TransferThread::internalStringTostring(item.source));
             doTheDateTransfer=false;
         }
         else
@@ -405,7 +406,9 @@ void MkPath::internalDoThisPath()
         PSECURITY_DESCRIPTOR PSecurityD;
         PACL dacl;
 
-        HANDLE hFile = CreateFileW(item.source.c_str(), GENERIC_READ ,
+        // \\?\-prefixed: a folder path over MAX_PATH otherwise fails to open here and its
+        // permissions/ACL are silently not transferred.
+        HANDLE hFile = CreateFileW(TransferThread::toFinalPath(item.source).c_str(), GENERIC_READ ,
                 FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
         if (hFile == INVALID_HANDLE_VALUE)
             ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,
@@ -420,7 +423,7 @@ void MkPath::internalDoThisPath()
               ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"GetSecurityInfo() failed. Error"+std::to_string(lasterror));
             else
             {
-                hFile = CreateFileW(item.destination.c_str(),READ_CONTROL | WRITE_OWNER | WRITE_DAC | ACCESS_SYSTEM_SECURITY ,
+                hFile = CreateFileW(TransferThread::toFinalPath(item.destination).c_str(),READ_CONTROL | WRITE_OWNER | WRITE_DAC | ACCESS_SYSTEM_SECURITY ,
                                    0, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
                 if (hFile == INVALID_HANDLE_VALUE)
                   ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"CreateFile() failed. Error: INVALID_HANDLE_VALUE");

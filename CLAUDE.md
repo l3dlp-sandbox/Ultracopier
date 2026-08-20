@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Ultracopier** is a Qt-based file copy/move utility replacement that intercepts system copy/move operations. It's a modular, plugin-based application written in C++17 with multi-threaded transfer operations.
 
-- **Version**: 3.0.x (C++11 to C++23)
+- **Version**: 3.1.x (C++11 to C++23)
 - **Website**: https://ultracopier.herman-brule.com/
 - **Repository**: https://github.com/alphaonex86/Ultracopier
 - **License**: GPLv3

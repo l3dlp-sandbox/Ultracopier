@@ -293,7 +293,10 @@ bool ReadThread::internalOpen(bool resetLastGoodPosition)
     DWORD flags=FILE_ATTRIBUTE_NORMAL;
     if(os_spec_flags)
         flags|=FILE_FLAG_SEQUENTIAL_SCAN;
-    from=CreateFileW(file.c_str(),GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,flags,NULL);
+    // toFinalPath() prefixes \\?\ (\\?\UNC\ for a NAS path): without it CreateFileW is capped at
+    // MAX_PATH (260) and a longer path fails with ERROR_PATH_NOT_FOUND(3) -- "path not found" on a
+    // file the scan (which DOES prefix) already listed. Every other Win32 site here prefixes.
+    from=CreateFileW(TransferThread::toFinalPath(file).c_str(),GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,flags,NULL);
     #endif
     #ifdef Q_OS_UNIX
     if(from>=0)

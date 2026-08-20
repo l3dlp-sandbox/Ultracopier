@@ -325,7 +325,9 @@ bool WriteThread::internalOpen()
     // Bypass cache on pre-Win8 (cache thrashing on XP with large files); Win8+ rejects it (err 87) unless writes are sector-aligned.
     if(!buffer && !IsWindows8OrGreater())
         flags|=FILE_FLAG_NO_BUFFERING;
-    to=CreateFileW(file.c_str(),GENERIC_WRITE,0,NULL,CREATE_ALWAYS,
+    // \\?\-prefixed like every other Win32 site (see ReadThread::internalOpen): a destination
+    // path over MAX_PATH (260) otherwise fails to CREATE with ERROR_PATH_NOT_FOUND(3).
+    to=CreateFileW(TransferThread::toFinalPath(file).c_str(),GENERIC_WRITE,0,NULL,CREATE_ALWAYS,
                    flags,NULL);
     #endif
     #ifdef Q_OS_UNIX

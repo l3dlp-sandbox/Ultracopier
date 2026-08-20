@@ -1192,9 +1192,13 @@ bool TransferThread::readSourceFileDateTime(const INTERNALTYPEPATH &source)
         butime.actime=actime;
         butime.modtime=modtime;
         #endif
-        if((uint64_t)modtime<ULTRACOPIER_PLUGIN_MINIMALYEAR_TIMESTAMPS)
+        /* Only a MISSING date is a failure. An OLD date is not: a file extracted from a ZIP/7z
+           carries an MS-DOS timestamp (epoch 1980) and is perfectly readable + settable. The old
+           "< 1995" test made keepDate reject those files outright (the caller escalates a false
+           return to errorOnFile and the file is never copied), so archive extractions failed. */
+        if(modtime<=0)
         {
-            ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+"] the sources is older to copy the time: "+TransferThread::internalStringTostring(source));
+            ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+"] the source has no modification date: "+TransferThread::internalStringTostring(source));
             return false;
         }
         Q_UNUSED(ctime);
@@ -1209,10 +1213,16 @@ bool TransferThread::readSourceFileDateTime(const INTERNALTYPEPATH &source)
             LARGE_INTEGER li;
             li.LowPart  = this->ftWrite.dwLowDateTime;
             li.HighPart = this->ftWrite.dwHighDateTime;
-            const uint64_t modtime=(li.QuadPart - 0x019DB1DED53E8000) / 10000000;
-            if(modtime<ULTRACOPIER_PLUGIN_MINIMALYEAR_TIMESTAMPS)
+            /* A FILETIME of 0 means the date was never set -- that (not an OLD date) is the only
+               real failure. Test it BEFORE converting: the conversion is a SIGNED subtraction, so
+               the old unsigned modtime wrapped huge for FILETIME 0 and PASSED the "< 1995" test,
+               while a valid 1980 ZIP/7z date (MS-DOS epoch) FAILED it and the file was refused. */
+            if(li.QuadPart<=0)
+                return false;
+            const int64_t modtime=(li.QuadPart - 0x019DB1DED53E8000) / 10000000;//unix seconds
+            if(modtime<=0)
             {
-                //ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+"] the sources is older to copy the time: "+source+": "+source.lastModified().toString().toStdString());
+                //ULTRACOPIER_DEBUGCONSOLE(Ultracopier::DebugLevel_Warning,"["+std::to_string(id)+"] the source has no modification date: "+source);
                 return false;
             }
             return true;
